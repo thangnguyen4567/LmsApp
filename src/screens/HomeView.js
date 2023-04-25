@@ -137,7 +137,7 @@ export default class HomeView extends Component {
                     <View style={styles.inputForm}>
                         <Image
                             style={styles.logo}
-                            source={require('../assets/Moodle-logo.png')}
+                            source={require('../assets/vnrlogo.png')}
                         />
                         <KeyboardAvoidingView style={styles.inputForm} >
                             <Text style={styles.baseText}>Nhập địa chỉ trang web:</Text>
