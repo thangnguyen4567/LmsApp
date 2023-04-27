@@ -16,7 +16,8 @@ import {
   Image,
   KeyboardAvoidingView,
   Keyboard,
-  Alert
+  Alert,
+  TouchableOpacity
 } from 'react-native';
 import Scanner from './Scanner';
 
@@ -146,23 +147,26 @@ export default class HomeView extends Component {
                                 value={this.state.url}
                                 onChangeText={(text) => this.setState({url:text})}
                             />
-                            <Button 
-                                color={colors.systemcolor}
-                                title="Truy cập"
+                            <TouchableOpacity 
+                                style={styles.button}
                                 onPress={() => {this.loginWebView(this.state.url)}}
-                            />
+                            >
+                                <Text style={styles.buttonText}>Truy cập</Text>
+                            </TouchableOpacity>
                             <Text style={{textAlign:'center',color:'black',margin:20}}>Hoặc</Text>
-                            <Button 
-                                style={{margin:10}} 
-                                title='Quét mã QR' 
-                                color={colors.systemcolor}
-                                onPress={() => {this.setState({scanQRCode:true})}}/>
+                            <TouchableOpacity 
+                                style={styles.button} 
+                                onPress={() => {this.setState({scanQRCode:true})}}
+                            >
+                                <Text style={styles.buttonText}>Quét mã QR</Text>
+                            </TouchableOpacity>
                             <Text style={{textAlign:'center',color:'black',margin:20}}>Hoặc</Text>
-                            <Button 
-                                style={{margin:10}} 
-                                title='Truy cập link mặc định' 
-                                color={colors.systemcolor}
-                                onPress={() => {this.loginWebView('https://lmstest.vnresource.net:14400')}}/>
+                            <TouchableOpacity
+                                style={styles.button}
+                                onPress={() => {this.loginWebView('https://lmstest.vnresource.net:14400')}}
+                            >
+                                <Text style={styles.buttonText} >Truy cập link mặc định</Text>
+                            </TouchableOpacity>
                         </KeyboardAvoidingView >
                     </View>
                 )}
@@ -234,9 +238,13 @@ const styles = StyleSheet.create({
         fontSize: 20
     },
     button: {
-        justifyContent: 'center',
-        borderRadius: 10,
+        borderRadius: 5,
+        padding:15,
         zIndex:100,
-        color:'white',
+        backgroundColor:colors.systemcolor
     },
+    buttonText: {
+        color: '#fff',
+        textAlign: 'center'
+    }
 });
