@@ -9,10 +9,8 @@ import React, { Component } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import HomeView from './src/screens/HomeView';
 import OfflineView from './src/screens/OfflineView';
-import codePush from "react-native-code-push";
 
 import {
-  Alert,
   View,
 } from 'react-native';
 
@@ -44,9 +42,6 @@ class App extends Component {
   //     }
   // }
 
-  codePushDownloadDidProgress(progress) {
-    Alert.alert(progress.receivedBytes + " of " + progress.totalBytes + " received.");
-  }
   componentDidMount() {
     // kiểm tra kết nối với internet
     NetInfo.addEventListener((state) => {
@@ -69,5 +64,4 @@ class App extends Component {
     );
   }
 }
-App = codePush({ updateDialog: true, installMode: codePush.InstallMode.IMMEDIATE })(App);
 export default App;

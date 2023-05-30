@@ -16,12 +16,12 @@ function UIHeader(props) {
         onPressRightIcon,
     } = props
     return <View style={{
-        height: Platform.OS == 'ios' ? 70 : 40,
+        height: Platform.OS == 'ios' ? 80 : 40,
         backgroundColor: colors.systemcolor,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: Platform.OS == 'ios' ? 30 : 0
+        paddingTop: Platform.OS == 'ios' ? 40 : 0
     }}>
         {leftIconName != undefined ? <Icon            
             name={leftIconName}

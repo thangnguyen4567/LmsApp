@@ -6,6 +6,7 @@ import UIHeader from '../components/UIHeader';
 import {colors} from '../constants'
 import {URL} from 'react-native-url-polyfill';
 import OneSignal from 'react-native-onesignal'; // Import package from node modules
+import { PERMISSIONS, request, RESULTS } from 'react-native-permissions';
 
 import {
   StyleSheet,
@@ -126,20 +127,14 @@ export default class HomeView extends Component {
         return (
             <View style={styles.container}>
                 {/* header  */}
-                {this.state.keyBoard == false && (
-                    <UIHeader 
-                        title={this.state.webTitle}
-                        rightIconName={this.state.visibleWebview == true ? 'sign-out-alt' : undefined}
-                        onPressRightIcon={() => this.exitWebView()}
-                    />
-                )}
+                <UIHeader 
+                    title={this.state.webTitle}
+                    rightIconName={this.state.visibleWebview == true ? 'sign-out-alt' : undefined}
+                    onPressRightIcon={() => this.exitWebView()}
+                />
                 {/* From input URL  */}
                 {this.state.visibleWebview == false && this.state.scanQRCode == false && (
                     <View style={styles.inputForm}>
-                        <Image
-                            style={styles.logo}
-                            source={require('../assets/vnrlogo.png')}
-                        />
                         <KeyboardAvoidingView style={styles.inputForm} >
                             <Text style={styles.baseText}>Nhập địa chỉ trang web:</Text>
                             <TextInput
@@ -180,7 +175,11 @@ export default class HomeView extends Component {
                 )}
                 {/* Màn hình quét mã QR  */}
                 {this.state.scanQRCode == true && (
-                    <Scanner onBack={() => {this.setState({scanQRCode:false})}} onScanner={this.onSuccess}/>
+                    <Scanner onPress={() => {
+                        request(PERMISSIONS.IOS.CAMERA).then(cameraStatus => {
+
+                        });
+                    }} onBack={() => {this.setState({scanQRCode:false})}} onScanner={this.onSuccess}/>
                 )}
             </View>
         )

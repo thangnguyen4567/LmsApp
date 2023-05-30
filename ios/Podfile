@@ -29,8 +29,8 @@ target 'LMS' do
   pod 'react-native-camera', path: '../node_modules/react-native-camera'
   pod 'RNPermissions', :path => '../node_modules/react-native-permissions'
   permissions_path = '../node_modules/react-native-permissions/ios'
-  pod 'Permission-Camera', :path => "../node_modules/react-native-permissions/ios/Camera/Permission-Camera.podspec"
-  
+  pod 'Permission-Camera', :path => "#{permissions_path}/Camera"
+
   use_react_native!(
     :path => config[:reactNativePath],
     # Hermes is now enabled by default. Disable by setting this flag to false.

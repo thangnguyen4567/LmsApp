@@ -49,6 +49,18 @@ export default ContentView = (props) => {
         setTitle(data.title);
         setSession(data.session);
     }
+    const onShouldStartLoadWithRequest = (event) => {
+        const { url, mainDocumentURL } = event;
+    
+        // Kiểm tra nếu URL không bắt đầu bằng URL gốc của WebView
+        if (!url.startsWith(mainDocumentURL)) {
+          // Chặn việc load URL bên ngoài
+          return false;
+        }
+    
+        // Cho phép việc load URL trong WebView
+        return true;
+    };
     return ( 
         <View style={styles.container}>
             <WebView
@@ -58,6 +70,7 @@ export default ContentView = (props) => {
                 injectedJavaScript={INJECTED_JAVASCRIPT}
                 onNavigationStateChange={(data) => handleResponse(data)}
                 onLoadStart={() => setVisible(true)}
+                onShouldStartLoadWithRequest={this.onShouldStartLoadWithRequest}
                 onLoadEnd={() => {
                     setVisible(false)
                 }}
