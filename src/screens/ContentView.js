@@ -1,10 +1,13 @@
 import React, {useState, useRef, useEffect} from 'react';
 import {WebView} from 'react-native-webview';
+import {URL} from 'react-native-url-polyfill';
 import {
   StyleSheet,
   View,
   BackHandler,
   ActivityIndicator,
+  Linking,
+  Alert,
 } from 'react-native';
 
 export default ContentView = (props) => {
@@ -19,6 +22,12 @@ export default ContentView = (props) => {
     } = props;
     const INJECTED_JAVASCRIPT = `
         document.cookie = 'appuserid=${oneSignalId}';
+        setTimeout(function(){
+            const targetElements = document.querySelectorAll('[target]');
+            targetElements.forEach(element => {
+                element.removeAttribute('target');
+            });
+        },2000)
         `;
     // Xử lý back trang trên web
     useEffect(() => {
@@ -34,10 +43,6 @@ export default ContentView = (props) => {
         );
         return () => backHandler.remove();
     }, [canGoBack]);
-
-    const handleResponse = (data: NavState) => {
-        setCanGoBack(!!data.canGoBack);
-    };
     // Nhận thông tin từ Web 
     const listenFromWeb = async (event) => {
         let data = null;
@@ -49,18 +54,6 @@ export default ContentView = (props) => {
         setTitle(data.title);
         setSession(data.session);
     }
-    const onShouldStartLoadWithRequest = (event) => {
-        const { url, mainDocumentURL } = event;
-    
-        // Kiểm tra nếu URL không bắt đầu bằng URL gốc của WebView
-        if (!url.startsWith(mainDocumentURL)) {
-          // Chặn việc load URL bên ngoài
-          return false;
-        }
-    
-        // Cho phép việc load URL trong WebView
-        return true;
-    };
     return ( 
         <View style={styles.container}>
             <WebView
@@ -68,9 +61,17 @@ export default ContentView = (props) => {
                 ref={webViewRef}
                 source={{ uri:url}}
                 injectedJavaScript={INJECTED_JAVASCRIPT}
-                onNavigationStateChange={(data) => handleResponse(data)}
                 onLoadStart={() => setVisible(true)}
-                onShouldStartLoadWithRequest={this.onShouldStartLoadWithRequest}
+                setsupportmultiplewindows={false}
+                onShouldStartLoadWithRequest={request => {
+                    let rooturl = new URL(url);
+                    if (request.url.startsWith(rooturl.origin)) {
+                        return true; // Cho phép tải trang mới
+                      } else {
+                        Linking.openURL(request.url);
+                        return false; // Chặn yêu cầu tải trang mới
+                      }
+                }}
                 onLoadEnd={() => {
                     setVisible(false)
                 }}

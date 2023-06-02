@@ -27,7 +27,7 @@ export default class HomeView extends Component {
     constructor(props) {
         super(props);
         this.state = {
-            url: "", // url của web lms
+            url: "https://lmstest.vnresource.net:14400?applms=true", // url của web lms
             visibleWebview: false, 
             keyBoard: false, // bàn phím bật hay tắt
             scanQRCode: false, // bật mã QR hay ko
@@ -108,16 +108,12 @@ export default class HomeView extends Component {
     exitWebView() {
         Alert.alert(
             'Xác nhận đăng xuất',
-            `Bạn có chắc muốn đăng xuất khỏi LMS ?`,
+            `Bạn có chắc muốn đăng xuất?`,
             [
                 { text: 'Hủy', style: 'cancel' },
                 { text: 'Đồng ý', onPress: () => {
                     let newurl = new URL(this.state.url);
                     this.setState({url:newurl.origin+'/login/logout.php?sesskey='+this.state.session})
-                    setTimeout(() => {
-                        this.clearAll();
-                        this.resetState();
-                    }, 3000);
                 }},
             ]
             );
@@ -129,11 +125,11 @@ export default class HomeView extends Component {
                 {/* header  */}
                 <UIHeader 
                     title={this.state.webTitle}
-                    rightIconName={this.state.visibleWebview == true ? 'sign-out-alt' : undefined}
+                    rightIconName={'sign-out-alt'}
                     onPressRightIcon={() => this.exitWebView()}
                 />
                 {/* From input URL  */}
-                {this.state.visibleWebview == false && this.state.scanQRCode == false && (
+                {/* {this.state.visibleWebview == false && this.state.scanQRCode == false && (
                     <View style={styles.inputForm}>
                         <KeyboardAvoidingView style={styles.inputForm} >
                             <Text style={styles.baseText}>Nhập địa chỉ trang web:</Text>
@@ -164,23 +160,23 @@ export default class HomeView extends Component {
                             </TouchableOpacity>
                         </KeyboardAvoidingView >
                     </View>
-                )}
+                )} */}
                 {/* Webview load trang web  */}
-                {this.state.url && this.state.visibleWebview == true && (
+                {/* {this.state.url && this.state.visibleWebview == true && ( */}
                     <ContentView visibleWebview={this.state.visibleWebview} 
                                 oneSignalId={this.state.oneSignalId} 
                                 url={this.state.url} 
                                 setTitle={(data) => this.setState({webTitle:data})}
                                 setSession={(data) => this.setState({session:data})}/>
-                )}
+                {/* )} */}
                 {/* Màn hình quét mã QR  */}
-                {this.state.scanQRCode == true && (
+                {/* {this.state.scanQRCode == true && (
                     <Scanner onPress={() => {
                         request(PERMISSIONS.IOS.CAMERA).then(cameraStatus => {
 
                         });
                     }} onBack={() => {this.setState({scanQRCode:false})}} onScanner={this.onSuccess}/>
-                )}
+                )} */}
             </View>
         )
     }
