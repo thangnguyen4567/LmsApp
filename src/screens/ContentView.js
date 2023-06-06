@@ -7,7 +7,6 @@ import {
   BackHandler,
   ActivityIndicator,
   Linking,
-  Alert,
 } from 'react-native';
 
 export default ContentView = (props) => {
@@ -67,10 +66,10 @@ export default ContentView = (props) => {
                     let rooturl = new URL(url);
                     if (request.url.startsWith(rooturl.origin)) {
                         return true; // Cho phép tải trang mới
-                      } else {
+                    } else {
                         Linking.openURL(request.url);
                         return false; // Chặn yêu cầu tải trang mới
-                      }
+                    }
                 }}
                 onLoadEnd={() => {
                     setVisible(false)

@@ -12,6 +12,7 @@ import OfflineView from './src/screens/OfflineView';
 import codePush from "react-native-code-push";
 import {
   View,
+  Alert
 } from 'react-native';
 
 class App extends Component {
@@ -22,7 +23,16 @@ class App extends Component {
         isVisible: true,
     };
   }
-
+  codePushStatusDidChange(status) {
+      switch(status) {
+          case codePush.SyncStatus.DOWNLOADING_PACKAGE:
+              Alert.alert("Downloading package...");
+              break;
+          case codePush.SyncStatus.UPDATE_INSTALLED:
+              Alert.alert("Update success.");
+              break;
+      }
+  }
   componentDidMount() {
     // kiểm tra kết nối với internet
     NetInfo.addEventListener((state) => {

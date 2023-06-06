@@ -26,7 +26,7 @@ function UIHeader(props) {
         {leftIconName != undefined ? <Icon            
             name={leftIconName}
             style={{ padding: 10 }}
-            size={23} color={'white'}
+            size={18} color={'white'}
             onPress={onPressLeftIcon}
         /> : <View style={{width: 50, height: 50}}/>}
         <Text 
