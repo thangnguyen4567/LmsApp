@@ -1,12 +1,12 @@
 import React, {Component} from 'react';
 import ContentView from "./ContentView";
 import Validate from '../components/Validate';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import UIHeader from '../components/UIHeader';
 import {colors} from '../constants'
 import {URL,URLSearchParams} from 'react-native-url-polyfill';
 import OneSignal from 'react-native-onesignal'; // Import package from node modules
 import { PERMISSIONS, request, RESULTS } from 'react-native-permissions';
+import {saveData,getData,deleteData} from '../components/AsyncStorage';
 import {
   StyleSheet,
   View,
@@ -15,38 +15,36 @@ import {
 } from 'react-native';
 import Scanner from './Scanner';
 
-const headerTitle = "LMS";
 export default class HomeView extends Component {
     constructor(props) {
         super(props);
+        this.webViewRef = React.createRef();
         this.state = {
-            url: "https://lmstest.vnresource.net:14400?applms=true", // url của web lms
+            url: "", // url của web lms
             keyBoard: false, // bàn phím bật hay tắt
             scanQRCode: false, // bật mã QR hay ko
-            webTitle: headerTitle, // tiêu dề web
+            webTitle: "LMS", // tiêu dề web
             session:"", // sessiong đăng nhập của web
             oneSignalId: "", // Mã userid của onesignal
+            username: "",
+            password: ""
         };
     }
-    // Lưu dữ liệu vào AsyncStorage với key là 'url'
-    saveData = async (url) => {
-        try {
-            await AsyncStorage.setItem('url', url); 
-        } catch (error) {
-        }
-    }
-     // Lấy dữ liệu từ AsyncStorage với key là 'url'
-    getData = async () => {
-        try {
-            var value = await AsyncStorage.getItem('url');
-            if(value != null) {
-                this.setState({url:value})
-            }
-        } catch (error) {
+    handleGoBack = () => {
+        if(this.webViewRef.current) {
+            this.webViewRef.current.goBack();
         }
     };
-    componentDidMount() {
-        this.getData();
+    async componentDidMount() {
+        let url = await getData('url');
+        let username = await getData('username');
+        let password = await getData('password');
+        this.setState({
+            url: (url) ? url : "https://lmstest.vnresource.net:14400/login/index.php?applms=true",
+            username: username,
+            password: password
+        })
+        
         Keyboard.addListener('keyboardDidShow', () => {
             this.setState({keyBoard:true})
         })
@@ -70,7 +68,7 @@ export default class HomeView extends Component {
                 <UIHeader 
                     title={this.state.webTitle}
                     rightIconName={(this.state.session) ? 'sign-out-alt' : undefined}
-                    leftIconName={(!this.state.session) ? 'qrcode' : undefined}
+                    leftIconName={(this.state.session) ? 'angle-left' : 'qrcode'}
                     onPressRightIcon={() => Alert.alert(
                         'Xác nhận đăng xuất',
                         `Bạn có chắc muốn đăng xuất?`,
@@ -79,11 +77,17 @@ export default class HomeView extends Component {
                             { text: 'Đồng ý', onPress: () => {
                                 let newurl = new URL(this.state.url);
                                 this.setState({url:newurl.origin+'/login/logout.php?sesskey='+this.state.session,session:''})
+                                deleteData('username');
+                                deleteData('password');
                             }},
                         ]
                     )}
                     onPressLeftIcon={() => {
-                        this.setState({scanQRCode:true})
+                        if(this.state.session) {
+                            this.handleGoBack()
+                        } else {
+                            this.setState({scanQRCode:true})
+                        }
                     }}
                 />
                 {/* Webview load trang web */}
@@ -92,7 +96,11 @@ export default class HomeView extends Component {
                         oneSignalId={this.state.oneSignalId} 
                         url={this.state.url} 
                         setTitle={(data) => this.setState({webTitle:data})}
-                        setSession={(data) => this.setState({session:data})}/>
+                        setSession={(data) => this.setState({session:data})}
+                        username={this.state.username}
+                        password={this.state.password}
+                        webViewRef={this.webViewRef}
+                    />
                 ) : (
                 // Quét mã QR
                     <Scanner 
@@ -105,10 +113,9 @@ export default class HomeView extends Component {
                         onScanner={e => {
                             let newurl = new URL(e.data);
                             let searchParams  = new URLSearchParams(newurl.search);
-                            if(Validate.isUrlValid(e.data) && searchParams.get('ISLMS') == 'true') {
-                                let baseUrl = newurl.origin + '?applms=true';
-                                this.setState({url:baseUrl,scanQRCode:false})
-                                this.saveData(baseUrl)
+                            if(Validate.isUrlValid(e.data) && (searchParams.get('applms') == 'true' || searchParams.get('ISLMS') == 'true')) {
+                                this.setState({url:e.data,scanQRCode:false})
+                                saveData('url',e.data)
                             } else {
                                 Alert.alert('Cảnh báo', 'Địa chỉ không hợp lệ',[
                                     {text: 'Trở về',onPress: () => 

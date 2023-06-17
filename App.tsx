@@ -55,5 +55,4 @@ class App extends Component {
     );
   }
 }
-App = codePush({ updateDialog: true, installMode: codePush.InstallMode.IMMEDIATE })(App);
 export default App;
