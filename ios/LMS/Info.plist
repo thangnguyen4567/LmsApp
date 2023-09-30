@@ -26,6 +26,8 @@
 	<string>lskGmyC6C42KIDZFeTQwvSCIW7GH1XnmbTT1o</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSTemporaryExceptionAllowsInsecureHTTPLoads</key>
+	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

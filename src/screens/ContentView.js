@@ -18,7 +18,7 @@ export default class ContentView extends Component {
             visible: true,
         };
     }
-    async componentDidMount() {
+    componentDidMount() {
         BackHandler.addEventListener('hardwareBackPress',() => {
             if (this.props.webViewRef.current) {
                 this.props.webViewRef.current.goBack();
@@ -45,17 +45,31 @@ export default class ContentView extends Component {
               } catch (error) {
                 data = event.nativeEvent.data
               }
-            this.props.setTitle(data.title);
             this.props.setSession(data.session);
             saveData('username',data.username);
             saveData('password',data.password);
+        }
+        const getBody = () => {
+            if(this.props.username && this.props.password) {
+                return 'username='+this.props.username+'&password='+this.props.password;
+            } else {
+                return '';
+            }
         }
         return (
             <View style={styles.container}>
                 <WebView
                     startInLoadingState={() => this.setState({visible:true})}
                     ref={this.props.webViewRef}
-                    source={{ uri:this.props.url,body:'username='+this.props.username+'&password='+this.props.password,method:'POST'}}
+                    source={{ 
+                        uri:this.props.url,
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded'},
+                        body:getBody(),
+                        method:'POST'
+                    }}
+                    onNavigationStateChange={navState => {
+                        this.props.setCurrentUrl(navState.url)
+                    }}
                     injectedJavaScript={INJECTED_JAVASCRIPT}
                     onLoadStart={() => this.setState({visible:true})}
                     setsupportmultiplewindows={false}

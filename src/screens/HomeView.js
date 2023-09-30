@@ -23,16 +23,19 @@ export default class HomeView extends Component {
             url: "", // url của web lms
             keyBoard: false, // bàn phím bật hay tắt
             scanQRCode: false, // bật mã QR hay ko
-            webTitle: "LMS", // tiêu dề web
+            webTitle: "", // tiêu dề web
             session:"", // sessiong đăng nhập của web
             oneSignalId: "", // Mã userid của onesignal
             username: "",
-            password: ""
+            password: "",
+            currentUrl: "",
         };
     }
     handleGoBack = () => {
-        if(this.webViewRef.current) {
-            this.webViewRef.current.goBack();
+        if(this.state.currentUrl.indexOf('/my/') == -1) {
+            if(this.webViewRef.current) {
+                this.webViewRef.current.goBack();
+            }
         }
     };
     async componentDidMount() {
@@ -40,7 +43,7 @@ export default class HomeView extends Component {
         let username = await getData('username');
         let password = await getData('password');
         this.setState({
-            url: (url) ? url : "https://lmstest.vnresource.net:14400/login/index.php?applms=true",
+            url: (url) ? url : "https://lmstest.vnresource.net/login/index.php?applms=true",
             username: username,
             password: password
         })
@@ -76,7 +79,12 @@ export default class HomeView extends Component {
                             { text: 'Hủy', style: 'cancel' },
                             { text: 'Đồng ý', onPress: () => {
                                 let newurl = new URL(this.state.url);
-                                this.setState({url:newurl.origin+'/login/logout.php?sesskey='+this.state.session,session:''})
+                                // Logout trong trường hợp trên link misa
+                                if(this.state.url.indexOf('/lms/') > -1) {
+                                    this.setState({url:newurl.origin+'/lms/login/logout.php?sesskey='+this.state.session,session:''})
+                                } else {
+                                    this.setState({url:newurl.origin+'/login/logout.php?sesskey='+this.state.session,session:''})
+                                }
                                 deleteData('username');
                                 deleteData('password');
                             }},
@@ -100,6 +108,7 @@ export default class HomeView extends Component {
                         username={this.state.username}
                         password={this.state.password}
                         webViewRef={this.webViewRef}
+                        setCurrentUrl={(data) => this.setState({currentUrl:data})}
                     />
                 ) : (
                 // Quét mã QR

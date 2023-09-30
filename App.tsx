@@ -10,6 +10,7 @@ import NetInfo from '@react-native-community/netinfo';
 import HomeView from './src/screens/HomeView';
 import OfflineView from './src/screens/OfflineView';
 import codePush from "react-native-code-push";
+import { PermissionsAndroid } from 'react-native';
 import {
   View,
   Alert
@@ -34,6 +35,7 @@ class App extends Component {
       }
   }
   componentDidMount() {
+    PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
     // kiểm tra kết nối với internet
     NetInfo.addEventListener((state) => {
         var status = `${state.isConnected}`;
