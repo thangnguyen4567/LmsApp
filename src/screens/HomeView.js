@@ -30,6 +30,7 @@ export default class HomeView extends Component {
             password: "",
             currentUrl: "",
         };
+        this.componentDidMount = this.componentDidMount.bind(this);
     }
     handleGoBack = () => {
         if(this.state.currentUrl.indexOf('/my/') == -1) {
@@ -47,7 +48,7 @@ export default class HomeView extends Component {
             username: username,
             password: password
         })
-        
+    
         Keyboard.addListener('keyboardDidShow', () => {
             this.setState({keyBoard:true})
         })
@@ -102,7 +103,7 @@ export default class HomeView extends Component {
                 {this.state.scanQRCode == false ? ( 
                     <ContentView 
                         oneSignalId={this.state.oneSignalId} 
-                        url={this.state.url} 
+                        url={(this.props.redirectUrl) ? this.props.redirectUrl : this.state.url} 
                         setTitle={(data) => this.setState({webTitle:data})}
                         setSession={(data) => this.setState({session:data})}
                         username={this.state.username}
@@ -124,6 +125,7 @@ export default class HomeView extends Component {
                             let searchParams  = new URLSearchParams(newurl.search);
                             if(Validate.isUrlValid(e.data) && (searchParams.get('applms') == 'true' || searchParams.get('ISLMS') == 'true')) {
                                 this.setState({url:e.data,scanQRCode:false})
+                                this.props.redirectUrl = '';
                                 saveData('url',e.data)
                             } else {
                                 Alert.alert('Cảnh báo', 'Địa chỉ không hợp lệ',[
