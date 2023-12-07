@@ -7,6 +7,10 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
+  NSURLCache *URLCache = [[NSURLCache alloc] initWithMemoryCapacity:4 * 1024 * 1024
+                                                     diskCapacity:20 * 1024 * 1024
+                                                         diskPath:nil];
+  [NSURLCache setSharedURLCache:URLCache];
   self.moduleName = @"LMS";
   // You can add your custom initial props in the dictionary below.
   // They will be passed down to the ViewController used by React Native.

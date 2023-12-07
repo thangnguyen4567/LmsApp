@@ -10,7 +10,8 @@
     "test": "jest",
     "create-bundle": "react-native bundle --entry-file index.js --platform ios --dev false --bundle-output ios/main.jsbundle --assets-dest ios",
     "release": "appcenter codepush release-react -a thang.nguyen-vnresource.org/LMS_ANDROID -d Production",
-    "resetcache": "npx react-native start --reset-cache"
+    "resetcache": "npx react-native start --reset-cache",
+    "clear-al": "npx react-native-clean-project"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^1.17.11",
