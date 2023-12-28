@@ -29,6 +29,7 @@ export default class HomeView extends Component {
             username: "",
             password: "",
             currentUrl: "",
+            firstMount: false,
         };
         this.componentDidMount = this.componentDidMount.bind(this);
     }
@@ -44,11 +45,16 @@ export default class HomeView extends Component {
         let username = await getData('username');
         let password = await getData('password');
         this.setState({
-            url: (url) ? url : "https://lmstest.vnresource.net/login/index.php?applms=true",
             username: username,
-            password: password
+            password: password,
+            firstMount: true
         })
-    
+        if(this.props.redirectUrl) {
+            this.setState({url: this.props.redirectUrl})
+        } else {
+            this.setState({url: (url) ? url : "https://lmstest.vnresource.net/login/index.php?applms=true"})
+        }
+
         Keyboard.addListener('keyboardDidShow', () => {
             this.setState({keyBoard:true})
         })
@@ -103,7 +109,7 @@ export default class HomeView extends Component {
                 {this.state.scanQRCode == false ? ( 
                     <ContentView 
                         oneSignalId={this.state.oneSignalId} 
-                        url={(this.props.redirectUrl) ? this.props.redirectUrl : this.state.url} 
+                        url={(this.props.redirectUrl && this.state.firstMount) ? this.props.redirectUrl : this.state.url} 
                         setTitle={(data) => this.setState({webTitle:data})}
                         setSession={(data) => this.setState({session:data})}
                         username={this.state.username}
