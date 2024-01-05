@@ -3,7 +3,6 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    
     <application
       android:usesCleartextTraffic="true"
       android:name=".MainApplication"
@@ -30,6 +29,12 @@
           <data android:scheme="lms" android:host="applms" />
         </intent-filter>
       </activity>
+      <meta-data
+          android:name="com.onesignal.messaging.default_notification_icon"
+          android:resource="@drawable/ic_stat_onesignal_default" />
+      <meta-data
+          android:name="com.onesignal.NotificationAccentColor.DEFAULT"
+          android:value="9ac341" />
     </application>
 </manifest>
 <!-- android:launchMode="singleTask" -->
