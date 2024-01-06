@@ -7,6 +7,7 @@ import {URL,URLSearchParams} from 'react-native-url-polyfill';
 import OneSignal from 'react-native-onesignal'; // Import package from node modules
 import { PERMISSIONS, request, RESULTS } from 'react-native-permissions';
 import {saveData,getData,deleteData} from '../components/AsyncStorage';
+import MenuItem from '../components/MenuItem';
 import {
   StyleSheet,
   View,
@@ -30,6 +31,7 @@ export default class HomeView extends Component {
             password: "",
             currentUrl: "",
             firstMount: false,
+            isMenuOpen: false,
         };
         this.componentDidMount = this.componentDidMount.bind(this);
     }
@@ -40,6 +42,29 @@ export default class HomeView extends Component {
             }
         }
     };
+    dataMenu = [
+        { icon: 'qrcode', title: 'Điểm danh', onPress: () => this.setState({scanQRCode:true, isMenuOpen:false})},
+        { icon: 'sign-out-alt', title: 'Đăng xuất', onPress: () => Alert.alert(
+                'Xác nhận đăng xuất',
+                `Bạn có chắc muốn đăng xuất?`,
+                [
+                    { text: 'Hủy', style: 'cancel' },
+                    { text: 'Đồng ý', onPress: () => {
+                        let newurl = new URL(this.state.url);
+                        // Logout trong trường hợp trên link misa
+                        if(this.state.url.indexOf('/lms/') > -1) {
+                            this.setState({url:newurl.origin+'/lms/login/logout.php?sesskey='+this.state.session,session:''})
+                        } else {
+                            this.setState({url:newurl.origin+'/login/logout.php?sesskey='+this.state.session,session:''})
+                        }
+                        this.setState({isMenuOpen:false})
+                        deleteData('username');
+                        deleteData('password');
+                    }},
+                ]
+            )
+        },
+    ]
     async componentDidMount() {
         let url = await getData('url');
         let username = await getData('username');
@@ -77,26 +102,15 @@ export default class HomeView extends Component {
                 {/* header */}
                 <UIHeader 
                     title={this.state.webTitle}
-                    rightIconName={(this.state.session) ? 'sign-out-alt' : undefined}
+                    rightIconName={(this.state.session) ? 'list' : undefined}
                     leftIconName={(this.state.session) ? 'angle-left' : 'qrcode'}
-                    onPressRightIcon={() => Alert.alert(
-                        'Xác nhận đăng xuất',
-                        `Bạn có chắc muốn đăng xuất?`,
-                        [
-                            { text: 'Hủy', style: 'cancel' },
-                            { text: 'Đồng ý', onPress: () => {
-                                let newurl = new URL(this.state.url);
-                                // Logout trong trường hợp trên link misa
-                                if(this.state.url.indexOf('/lms/') > -1) {
-                                    this.setState({url:newurl.origin+'/lms/login/logout.php?sesskey='+this.state.session,session:''})
-                                } else {
-                                    this.setState({url:newurl.origin+'/login/logout.php?sesskey='+this.state.session,session:''})
-                                }
-                                deleteData('username');
-                                deleteData('password');
-                            }},
-                        ]
-                    )}
+                    onPressRightIcon={() => {
+                        if(this.state.isMenuOpen == false) {
+                            this.setState({isMenuOpen:true})
+                        } else {
+                            this.setState({isMenuOpen:false})
+                        }
+                    }}
                     onPressLeftIcon={() => {
                         if(this.state.session) {
                             this.handleGoBack()
@@ -105,6 +119,9 @@ export default class HomeView extends Component {
                         }
                     }}
                 />
+                {this.state.isMenuOpen == true &&
+                    <MenuItem dataMenu={this.dataMenu} />
+                }
                 {/* Webview load trang web */}
                 {this.state.scanQRCode == false ? ( 
                     <ContentView 
@@ -129,7 +146,9 @@ export default class HomeView extends Component {
                         onScanner={e => {
                             let newurl = new URL(e.data);
                             let searchParams  = new URLSearchParams(newurl.search);
-                            if(Validate.isUrlValid(e.data) && (searchParams.get('applms') == 'true' || searchParams.get('ISLMS') == 'true')) {
+                            if(Validate.isUrlValid(e.data) && this.state.session) {
+                                this.setState({url:e.data,scanQRCode:false})
+                            } else if(Validate.isUrlValid(e.data) && (searchParams.get('applms') == 'true')) {
                                 this.setState({url:e.data,scanQRCode:false})
                                 this.props.redirectUrl = '';
                                 saveData('url',e.data)

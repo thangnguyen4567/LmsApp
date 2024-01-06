@@ -28,6 +28,7 @@ export default class MenuItem extends Component {
             <FlatList
                 data={this.props.dataMenu}
                 renderItem={this.renderItem}
+                style={style.menu}
             />
         )
     }
@@ -42,6 +43,16 @@ const style = StyleSheet.create({
     },
     icon: {
         padding:5,
-        color:'black'
+        color:'black',
+        marginRight:10
+    },
+    menu: {
+        position: 'absolute',
+        top: 40,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 999, 
+        backgroundColor:'white',
     }
 })

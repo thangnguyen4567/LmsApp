@@ -75,6 +75,9 @@ class App extends Component {
 		var finalUrl = '';		
 		if(url) {
 			finalUrl = decodeURIComponent(url);
+			if(finalUrl.startsWith('https://misajsc.amis.vn/lms')) {
+				finalUrl = 'https://misajsc.amis.vn/lms/auth/saas/index.php'
+			}
 			saveData('url', finalUrl);
 		} 
 		return (
