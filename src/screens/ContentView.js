@@ -42,16 +42,21 @@ export default class ContentView extends Component {
             let data = null;
             try {
                 data = JSON.parse(event.nativeEvent.data)
-              } catch (error) {
+            } catch (error) {
                 data = event.nativeEvent.data
-              }
+            }
             this.props.setSession(data.session);
+            // Lưu thông tin đăng nhập của saas
+            saveData('saas_userdata',data.saas_userdata)
             saveData('username',data.username);
             saveData('password',data.password);
         }
         const getBody = () => {
             if(this.props.username && this.props.password) {
                 return 'username='+this.props.username+'&password='+this.props.password;
+            } else if(this.props.saas_userdata) {
+                // Xử lý truyền thông tin user saas
+                return 'user_saas='+encodeURIComponent(this.props.saas_userdata)
             } else {
                 return '';
             }
@@ -76,7 +81,9 @@ export default class ContentView extends Component {
                     onShouldStartLoadWithRequest={request => {
                         let rooturl = new URL(this.props.url);
                         // Kiểm tra nếu url vẫn là url của lms thì mới load (hoặc url đăng nhập của misa)
-                        if (request.url.startsWith(rooturl.origin) || request.url.startsWith('https://amisapp.misa.vn/login')) {
+                        if (request.url.startsWith(rooturl.origin) || 
+                            request.url.startsWith('https://amisapp.misa.vn/login') ||
+                            request.url.startsWith('https://misajsc.amis.vn/login') ) {
                             return true; // Cho phép tải trang mới
                         } 
                         // else {

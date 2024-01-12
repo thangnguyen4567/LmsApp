@@ -32,6 +32,7 @@ export default class HomeView extends Component {
             currentUrl: "",
             firstMount: false,
             isMenuOpen: false,
+            saas_userdata: "",
         };
         this.componentDidMount = this.componentDidMount.bind(this);
     }
@@ -43,7 +44,7 @@ export default class HomeView extends Component {
         }
     };
     dataMenu = [
-        { icon: 'qrcode', title: 'Điểm danh', onPress: () => this.setState({scanQRCode:true, isMenuOpen:false})},
+        { icon: 'qrcode', title: 'Quét mã QR', onPress: () => this.setState({scanQRCode:true, isMenuOpen:false})},
         { icon: 'sign-out-alt', title: 'Đăng xuất', onPress: () => Alert.alert(
                 'Xác nhận đăng xuất',
                 `Bạn có chắc muốn đăng xuất?`,
@@ -60,6 +61,7 @@ export default class HomeView extends Component {
                         this.setState({isMenuOpen:false})
                         deleteData('username');
                         deleteData('password');
+                        deleteData('saas_userdata')
                     }},
                 ]
             )
@@ -69,9 +71,11 @@ export default class HomeView extends Component {
         let url = await getData('url');
         let username = await getData('username');
         let password = await getData('password');
+        let saas_userdata = await getData('saas_userdata');
         this.setState({
             username: username,
             password: password,
+            saas_userdata: saas_userdata,
             firstMount: true
         })
         if(this.props.redirectUrl) {
@@ -131,6 +135,7 @@ export default class HomeView extends Component {
                         setSession={(data) => this.setState({session:data})}
                         username={this.state.username}
                         password={this.state.password}
+                        saas_userdata={this.state.saas_userdata}
                         webViewRef={this.webViewRef}
                         setCurrentUrl={(data) => this.setState({currentUrl:data})}
                     />

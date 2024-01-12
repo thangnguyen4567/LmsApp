@@ -5,7 +5,8 @@ FlatList,
 TouchableOpacity,
 View,
 Text,
-StyleSheet
+StyleSheet,
+Platform
 } from 'react-native';
 
 export default class MenuItem extends Component {
@@ -48,7 +49,7 @@ const style = StyleSheet.create({
     },
     menu: {
         position: 'absolute',
-        top: 40,
+        top: Platform.OS == 'ios' ? 80 : 40,
         left: 0,
         right: 0,
         bottom: 0,
