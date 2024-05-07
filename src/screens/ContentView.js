@@ -16,6 +16,7 @@ export default class ContentView extends Component {
         super(props);
         this.state = {
             visible: true,
+            webview:'',
         };
     }
     componentDidMount() {
@@ -38,6 +39,7 @@ export default class ContentView extends Component {
             });
         },2000)
         `;
+        // Xư lý các thông tin được gửi từ web
         const listenFromWeb = async (event) => {
             let data = null;
             try {
@@ -47,19 +49,29 @@ export default class ContentView extends Component {
             }
             this.props.setSession(data.session);
             // Lưu thông tin đăng nhập của saas
-            saveData('saas_userdata',data.saas_userdata)
-            saveData('username',data.username);
-            saveData('password',data.password);
+            if(data.saas_userdata) {
+                saveData('saas_userdata',data.saas_userdata)
+            }
+            if(data.username) {
+                saveData('username',data.username);
+            }
+            if(data.password) {
+                saveData('password',data.password);
+            }
+            if(data.url) {
+                this.setState({webview: data.url})
+            }
         }
         const getBody = () => {
+            let param = 'test=1234';
             if(this.props.username && this.props.password) {
-                return 'username='+this.props.username+'&password='+this.props.password;
-            } else if(this.props.saas_userdata) {
+                param +='&username='+this.props.username+'&password='+this.props.password;
+            } 
+            if(this.props.saas_userdata) {
                 // Xử lý truyền thông tin user saas
-                return 'user_saas='+encodeURIComponent(this.props.saas_userdata)
-            } else {
-                return '';
-            }
+                param += '&user_saas='+encodeURIComponent(this.props.saas_userdata)
+            } 
+            return param;
         }
         return (
             <View style={styles.container}>
@@ -67,7 +79,7 @@ export default class ContentView extends Component {
                     startInLoadingState={() => this.setState({visible:true})}
                     ref={this.props.webViewRef}
                     source={{ 
-                        uri:this.props.url,
+                        uri:this.state.webview ? this.state.webview : this.props.url,
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded'},
                         body:getBody(),
                         method:'POST'
@@ -86,10 +98,12 @@ export default class ContentView extends Component {
                             request.url.startsWith('https://misajsc.amis.vn/login') ) {
                             return true; // Cho phép tải trang mới
                         } 
-                        // else {
-                        //     Linking.openURL(request.url);
-                        //     return false; // Chặn yêu cầu tải trang mới
-                        // }
+                        else {
+                            if (!request.url.includes('google.com') && !request.url.includes('notify.misa')) {
+                                Linking.openURL(request.url);
+                                return false; // Chặn yêu cầu tải trang mới
+                            }
+                        }
                     }}
                     onLoadEnd={() => {
                         this.setState({visible:false})
