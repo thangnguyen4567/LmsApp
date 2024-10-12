@@ -81,7 +81,7 @@ export default class HomeView extends Component {
         if(this.props.redirectUrl) {
             this.setState({url: this.props.redirectUrl})
         } else {
-            this.setState({url: (url) ? url : "https://lmstest.vnresource.net/login/index.php?applms=true"})
+            this.setState({url: (url) ? url : "https://lms-newest.vnresource.net"})
         }
 
         Keyboard.addListener('keyboardDidShow', () => {
