@@ -91,18 +91,21 @@ export default class ContentView extends Component {
                     onLoadStart={() => this.setState({visible:true})}
                     setsupportmultiplewindows={false}
                     onShouldStartLoadWithRequest={request => {
-                        let rooturl = new URL(this.props.url);
-                        // Kiểm tra nếu url vẫn là url của lms thì mới load (hoặc url đăng nhập của misa)
-                        if (request.url.startsWith(rooturl.origin) || 
+                        if(Platform.OS == 'android') {
+                            let rooturl = new URL(this.props.url);
+                            // Kiểm tra nếu url vẫn là url của lms thì mới load (hoặc url đăng nhập của misa)
+                            if (request.url.startsWith(rooturl.origin) || 
                             request.url.startsWith('https://amisapp.misa.vn/login') ||
                             request.url.startsWith('https://misajsc.amis.vn/login') ) {
-                            return true; // Cho phép tải trang mới
-                        } 
-                        else {
-                            if (!request.url.includes('google.com') && !request.url.includes('notify.misa')) {
-                                Linking.openURL(request.url);
-                                return false; // Chặn yêu cầu tải trang mới
+                                return true; // Cho phép tải trang mới
+                            } else {
+                                if (!request.url.includes('google.com') && !request.url.includes('notify.misa')) {
+                                    Linking.openURL(request.url);
+                                    return false; // Chặn yêu cầu tải trang mới
+                                }
                             }
+                        } else {
+                            return true;
                         }
                     }}
                     onLoadEnd={() => {
