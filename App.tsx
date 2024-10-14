@@ -29,14 +29,11 @@ const config = {
 				id: (url) => `${url}`,
 			},
 		},
-		Test: {
-			path: "test",
-		},
 	},
 }
   
 const linking = {
-	prefixes: ["lms://applms"],
+	prefixes: ["vnrlms://applms"],
 	config
 };
 class App extends Component {

@@ -107,8 +107,8 @@ android {
         applicationId "com.vnresourceelmspro"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 13
-        versionName "1.1"
+        versionCode 14
+        versionName "3.1"
         missingDimensionStrategy 'react-native-camera', 'general'
     }
     signingConfigs {

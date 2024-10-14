@@ -29,7 +29,7 @@
 			<string>applms</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>lms</string>
+				<string>vnrlms</string>
 			</array>
 		</dict>
 	</array>
