@@ -102,3 +102,55 @@ pod deintegrate
 pod setup
 pod install
 ```
+
+# Hướng dẫn upbuild nhanh bằng CodePush
+
+## 1. Cài đặt CodePush CLI
+
+```bash
+# Clone repository
+git clone https://github.com/Microsoft/code-push-server.git
+
+# Di chuyển đến thư mục CLI
+cd D:\code-push-server\cli
+
+# Cài đặt dependencies
+npm install
+
+# Build CLI
+npm run build
+
+# Cài đặt CLI globally
+npm install -g
+```
+
+## 2. Đăng nhập và đăng ký CodePush
+
+```bash
+# Đăng nhập với URL API
+code-push-standalone register https://codepush.vnresource.net:2080/
+```
+
+## 3. Cập nhật ứng dụng
+
+### Android
+```bash
+code-push-standalone release-react AILearning_Android android -d Production
+```
+
+### iOS
+```bash
+code-push-standalone release-react AILearning_Ios IOS -d Production
+```
+
+## 4. Thông tin Deployment Key
+
+### Android
+```
+Production: 3Epv-N3KNUHuoh3HPqeYRrPRYZm4EyXs9Xxkfl
+```
+
+### iOS
+```
+Production: _5QZeVBLxIlOcQvsbTC4pG3r-hwKEyXs9Xxkfl
+```

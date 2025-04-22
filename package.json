@@ -9,8 +9,8 @@
     "start": "react-native start",
     "test": "jest",
     "create-bundle": "react-native bundle --entry-file index.js --platform ios --dev false --bundle-output ios/main.jsbundle --assets-dest ios",
-    "release": "appcenter codepush release-react -a thang.nguyen-vnresource.org/LMS_ANDROID -d Production",
-    "releaseios": "appcenter codepush release-react -a thang.nguyen-vnresource.org/LMS_IOS -d Production",
+    "codepush-android": "code-push-standalone release-react AILearning_Android android -d Production",
+    "codepush-ios": "code-push-standalone release-react AILearning_Ios IOS -d Production",
     "resetcache": "npx react-native start --reset-cache",
     "clear-al": "npx react-native-clean-project"
   },
