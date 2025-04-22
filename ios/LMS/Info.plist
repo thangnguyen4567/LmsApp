@@ -36,7 +36,7 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>CodePushDeploymentKey</key>
-	<string>lskGmyC6C42KIDZFeTQwvSCIW7GH1XnmbTT1o</string>
+	<string>_5QZeVBLxIlOcQvsbTC4pG3r-hwKEyXs9Xxkfl</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSTemporaryExceptionAllowsInsecureHTTPLoads</key>
