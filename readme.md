@@ -1,5 +1,11 @@
 # Khởi tạo dự án sau khi clone
 
+## Cài đặt môi trường theo hướng dẫn 
+- Đối với Window
+https://reactnative.dev/docs/set-up-your-environment?os=windows&platform=android
+- Đối với IOS 
+https://reactnative.dev/docs/set-up-your-environment?os=macos&platform=android
+
 ## Cài đặt dependencies
 ```bash
 npm install
@@ -28,6 +34,7 @@ cd ..
 
 # Android
 
+Lệnh chạy app
 ```bash
 npm run android
 ```
@@ -56,6 +63,7 @@ Truy cập vào trang https://play.google.com/console/u/0/developers đăng nh�
 
 # IOS
 
+Lệnh chạy app
 ```bash
 npm run ios
 ```
@@ -80,7 +88,7 @@ npm run create-bundle
 npx react-native run-ios --configuration Release
 ```
 
-## Tạo file .ipa để đưa lên App Store
+## Đưa APP lên App Store
 1. Mở project bằng Xcode: mở file `ios/LMS.xcworkspace`
 2. Chọn scheme "LMS" và thiết bị "Any iOS Device (arm64)"
 3. Cập nhật marketingVersion và buildNumber theo đường dẫn `ios/LMS.xcodeproj/project.pbxproj`
