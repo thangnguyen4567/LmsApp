@@ -13,8 +13,10 @@ import {
   View,
   Keyboard,
   Alert,
+  ActivityIndicator
 } from 'react-native';
 import Scanner from './Scanner';
+import WelcomePlaceholder from './WelcomePlaceholder';
 
 export default class HomeView extends Component {
     constructor(props) {
@@ -32,6 +34,7 @@ export default class HomeView extends Component {
             currentUrl: "",
             firstMount: false,
             isMenuOpen: false,
+            storageReady: false,
             saas_userdata: "",
         };
         this.componentDidMount = this.componentDidMount.bind(this);
@@ -76,12 +79,13 @@ export default class HomeView extends Component {
             username: username,
             password: password,
             saas_userdata: saas_userdata,
-            firstMount: true
+            firstMount: true,
+            storageReady: true
         })
         if(this.props.redirectUrl) {
             this.setState({url: this.props.redirectUrl})
         } else {
-            this.setState({url: (url) ? url : "https://lms-newest.vnresource.net"})
+            this.setState({url: url ? url : ''})
         }
 
         Keyboard.addListener('keyboardDidShow', () => {
@@ -100,7 +104,32 @@ export default class HomeView extends Component {
             this.setState({oneSignalId:deviceState.userId})
         })
     }
+
+    setUrlDev = () => {
+        let url = 'your-url-when-developing';
+        // let url = 'http://172.21.30.105:8990/auth/saas/index.php?applms=true';
+        let newurl = new URL(url);
+        let searchParams  = new URLSearchParams(newurl.search);
+        if(Validate.isUrlValid(url) && this.state.session) {
+            this.setState({url:url,scanQRCode:false})
+        } else if(Validate.isUrlValid(url) && (searchParams.get('applms') == 'true')) {
+            this.setState({url:url,scanQRCode:false})
+            this.props.redirectUrl = '';
+            saveData('url',url)
+        } else {
+            Alert.alert('Cảnh báo', 'Địa chỉ không hợp lệ',[
+                {text: 'Trở về',onPress: () => 
+                    {
+                        this.setState({scanQRCode:false})
+                    }
+                },
+            ]);
+        }
+    }
     render() {
+        const webUrl = (this.props.redirectUrl || this.state.url || '').trim();
+        const hasWebUrl = webUrl.length > 0;
+
         return (
             <View style={styles.container}>
                 {/* header */}
@@ -128,17 +157,27 @@ export default class HomeView extends Component {
                 }
                 {/* Webview load trang web */}
                 {this.state.scanQRCode == false ? ( 
-                    <ContentView 
-                        oneSignalId={this.state.oneSignalId} 
-                        url={(this.props.redirectUrl && this.state.firstMount) ? this.props.redirectUrl : this.state.url} 
-                        setTitle={(data) => this.setState({webTitle:data})}
-                        setSession={(data) => this.setState({session:data})}
-                        username={this.state.username}
-                        password={this.state.password}
-                        saas_userdata={this.state.saas_userdata}
-                        webViewRef={this.webViewRef}
-                        setCurrentUrl={(data) => this.setState({currentUrl:data})}
-                    />
+                    !this.state.storageReady ? (
+                        <View style={styles.contentLoading}>
+                            <ActivityIndicator size="large" />
+                        </View>
+                    ) : !hasWebUrl ? (
+                        <WelcomePlaceholder
+                            setScanQRCode={(data) => this.setState({scanQRCode:data})}
+                        />
+                    ) : (
+                        <ContentView 
+                            oneSignalId={this.state.oneSignalId} 
+                            url={this.props.redirectUrl || this.state.url} 
+                            setTitle={(data) => this.setState({webTitle:data})}
+                            setSession={(data) => this.setState({session:data})}
+                            username={this.state.username}
+                            password={this.state.password}
+                            saas_userdata={this.state.saas_userdata}
+                            webViewRef={this.webViewRef}
+                            setCurrentUrl={(data) => this.setState({currentUrl:data})}
+                        />
+                    )
                 ) : (
                 // Quét mã QR
                     <Scanner 
@@ -175,6 +214,12 @@ export default class HomeView extends Component {
 };
 
 const styles = StyleSheet.create({
+    contentLoading: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'white',
+    },
     container : {
         flex:1,
         backgroundColor: 'white',
