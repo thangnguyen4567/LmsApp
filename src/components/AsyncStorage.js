@@ -1,28 +1,40 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-const saveData = async (key,value) => {
+import {
+    lmsMMKV,
+    ensureAsyncStorageMigratedToMmkv,
+} from './mmkvStorage';
+
+const saveData = async (key, value) => {
     try {
-        await AsyncStorage.setItem(key, value); 
+        await ensureAsyncStorageMigratedToMmkv();
+        if (value === undefined || value === null) {
+            lmsMMKV.remove(key);
+        } else {
+            lmsMMKV.set(key, String(value));
+        }
     } catch (error) {
-    }
-}
-const getData = async (key) => {
-    try {
-        var value = await AsyncStorage.getItem(key);
-        return value;
-    } catch (error) {
+        console.log(error);
     }
 };
-const deleteData = async (key) => {
+
+const getData = async key => {
     try {
-        await AsyncStorage.removeItem(key);
-        return true;
+        await ensureAsyncStorageMigratedToMmkv();
+        const value = lmsMMKV.getString(key);
+        return value === undefined ? null : value;
+    } catch (error) {
+        console.log(error);
     }
-    catch(exception) {
+};
+
+const deleteData = async key => {
+    try {
+        await ensureAsyncStorageMigratedToMmkv();
+        lmsMMKV.remove(key);
+        return true;
+    } catch (exception) {
+        console.log(exception);
         return false;
     }
-}
-export {
-    saveData,
-    getData,
-    deleteData
-}
+};
+
+export {saveData, getData, deleteData};

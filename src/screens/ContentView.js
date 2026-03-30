@@ -62,7 +62,7 @@ export default class ContentView extends Component {
             }
         }
         const getBody = () => {
-            let param = 'test=1234';
+            let param = 'fromapp=1';
             if(this.props.username && this.props.password) {
                 param +='&username='+this.props.username+'&password='+this.props.password;
             } 
