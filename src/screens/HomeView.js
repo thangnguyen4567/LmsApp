@@ -18,7 +18,7 @@ import {
 import Scanner from './Scanner';
 import WelcomePlaceholder from './WelcomePlaceholder';
 
-const ONESIGNAL_APP_ID = 'ee0b4c19-f714-4891-b390-5dd250575a18';
+const ONESIGNAL_APP_ID = '5fedb6e7-a3d6-4767-ae98-5d17e30dc778';
 let oneSignalNativeInitialized = false;
 
 export default class HomeView extends Component {
@@ -31,7 +31,7 @@ export default class HomeView extends Component {
             scanQRCode: false, // bật mã QR hay ko
             webTitle: "", // tiêu dề web
             session:"", // sessiong đăng nhập của web
-            oneSignalId: "", // Mã userid của onesignal
+            oneSignalId: "", // Push subscription id (dùng với include_player_ids trên backend)
             username: "",
             password: "",
             currentUrl: "",
@@ -44,6 +44,8 @@ export default class HomeView extends Component {
         this._onOneSignalNotificationClick = this._onOneSignalNotificationClick.bind(
             this,
         );
+        this._onOneSignalForegroundWillDisplay =
+            this._onOneSignalForegroundWillDisplay.bind(this);
         this._onOneSignalUserOrSubscriptionChanged =
             this._onOneSignalUserOrSubscriptionChanged.bind(this);
     }
@@ -54,6 +56,10 @@ export default class HomeView extends Component {
         OneSignal.Notifications.removeEventListener(
             'click',
             this._onOneSignalNotificationClick,
+        );
+        OneSignal.Notifications.removeEventListener(
+            'foregroundWillDisplay',
+            this._onOneSignalForegroundWillDisplay,
         );
         OneSignal.User.removeEventListener(
             'change',
@@ -69,16 +75,17 @@ export default class HomeView extends Component {
         console.log('OneSignal: notification opened:', event);
     }
 
+    _onOneSignalForegroundWillDisplay(event) {
+        event.getNotification().display();
+    }
+
     _onOneSignalUserOrSubscriptionChanged(_event) {
         this._syncOneSignalIdToState();
     }
 
     async _syncOneSignalIdToState() {
         try {
-            let id = await OneSignal.User.getOnesignalId();
-            if (!id) {
-                id = await OneSignal.User.pushSubscription.getIdAsync();
-            }
+            const id = await OneSignal.User.pushSubscription.getIdAsync();
             if (id) {
                 this.setState({oneSignalId: id});
             }
@@ -92,9 +99,21 @@ export default class HomeView extends Component {
             OneSignal.initialize(ONESIGNAL_APP_ID);
             oneSignalNativeInitialized = true;
         }
+        OneSignal.Notifications.removeEventListener(
+            'click',
+            this._onOneSignalNotificationClick,
+        );
         OneSignal.Notifications.addEventListener(
             'click',
             this._onOneSignalNotificationClick,
+        );
+        OneSignal.Notifications.removeEventListener(
+            'foregroundWillDisplay',
+            this._onOneSignalForegroundWillDisplay,
+        );
+        OneSignal.Notifications.addEventListener(
+            'foregroundWillDisplay',
+            this._onOneSignalForegroundWillDisplay,
         );
         OneSignal.User.addEventListener(
             'change',

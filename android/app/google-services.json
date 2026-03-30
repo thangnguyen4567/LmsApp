@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "212822187388",
+    "project_id": "lms-notification-75264",
+    "storage_bucket": "lms-notification-75264.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:212822187388:android:e5933bad611c7d21d698f9",
+        "android_client_info": {
+          "package_name": "com.vnresourceelmspro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbBEGNGBdSoUSKBKHgWBLdgD3W4riiJe8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
