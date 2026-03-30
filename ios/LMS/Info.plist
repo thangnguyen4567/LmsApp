@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
@@ -35,29 +37,29 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>CodePushDeploymentKey</key>
-	<string>_5QZeVBLxIlOcQvsbTC4pG3r-hwKEyXs9Xxkfl</string>
 	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<key>NSTemporaryExceptionAllowsInsecureHTTPLoads</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
 		<true/>
 	</dict>
-	<key>NSPersistentStoreUbiquitousContentName</key>
-	<string>$(CFBundleIdentifier).CloudStore</string>
-	<key>NSPersistentStoreUbiquitousContentURL</key>
-	<string>CloudStore</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Access to photos is required for image loading.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Access to photos is required for image loading.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Ứng dụng của bạn cần truy cập camera để quét mã QR.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Ứng dụng của bạn cần truy cập vị trí</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Access to photos is required for image loading.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Access to photos is required for image loading.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UIAppFonts</key>
 	<array>
 		<string>AntDesign.ttf</string>
@@ -80,13 +82,20 @@
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>

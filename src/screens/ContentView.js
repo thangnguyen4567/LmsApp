@@ -33,12 +33,10 @@ export default class ContentView extends Component {
     render() { 
         const INJECTED_JAVASCRIPT = `
         document.cookie = 'appuserid=${this.props.oneSignalId}';
-        setTimeout(function(){
-            const targetElements = document.querySelectorAll('[target]');
-            targetElements.forEach(element => {
-                element.removeAttribute('target');
-            });
-        },2000)
+        const targetElements = document.querySelectorAll('[target]');
+        targetElements.forEach(element => {
+            element.removeAttribute('target');
+        });
         `;
         // Xư lý các thông tin được gửi từ web
         const listenFromWeb = async (event) => {
@@ -79,11 +77,10 @@ export default class ContentView extends Component {
                 <WebView
                     startInLoadingState={() => this.setState({visible:true})}
                     ref={this.props.webViewRef}
-                    source={{ 
-                        uri:this.state.webview ? this.state.webview : this.props.url,
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded'},
-                        body:getBody(),
-                        method:'POST'
+                    source={{
+                        uri: this.state.webview ? this.state.webview : this.props.url,
+                        body: getBody(),
+                        method: 'POST',
                     }}
                     onNavigationStateChange={navState => {
                         this.props.setCurrentUrl(navState.url)
@@ -96,8 +93,9 @@ export default class ContentView extends Component {
                             let rooturl = new URL(this.props.url);
                             // Kiểm tra nếu url vẫn là url của lms thì mới load (hoặc url đăng nhập của misa)
                             if (request.url.startsWith(rooturl.origin) || 
-                            request.url.startsWith('https://amisapp.misa.vn/login') ||
-                            request.url.startsWith('https://misajsc.amis.vn/login') ) {
+                            request.url.startsWith('https://amisapp.misa.vn/') ||
+                            request.url.startsWith('https://misajsc.amis.vn/') ||
+                            request.url.startsWith('https://testmisajsc.amis.vn/')) {
                                 return true; // Cho phép tải trang mới
                             } else {
                                 if (!request.url.includes('google.com') && !request.url.includes('notify.misa')) {

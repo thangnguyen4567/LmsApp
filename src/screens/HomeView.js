@@ -4,8 +4,8 @@ import Validate from '../components/Validate';
 import UIHeader from '../components/UIHeader';
 import {colors} from '../constants'
 import {URL,URLSearchParams} from 'react-native-url-polyfill';
-import OneSignal from 'react-native-onesignal'; // Import package from node modules
-import { PERMISSIONS, request, RESULTS } from 'react-native-permissions';
+import {OneSignal} from 'react-native-onesignal';
+import {PERMISSIONS, request} from 'react-native-permissions';
 import {saveData,getData,deleteData} from '../components/AsyncStorage';
 import MenuItem from '../components/MenuItem';
 import {
@@ -17,6 +17,9 @@ import {
 } from 'react-native';
 import Scanner from './Scanner';
 import WelcomePlaceholder from './WelcomePlaceholder';
+
+const ONESIGNAL_APP_ID = 'ee0b4c19-f714-4891-b390-5dd250575a18';
+let oneSignalNativeInitialized = false;
 
 export default class HomeView extends Component {
     constructor(props) {
@@ -38,6 +41,71 @@ export default class HomeView extends Component {
             saas_userdata: "",
         };
         this.componentDidMount = this.componentDidMount.bind(this);
+        this._onOneSignalNotificationClick = this._onOneSignalNotificationClick.bind(
+            this,
+        );
+        this._onOneSignalUserOrSubscriptionChanged =
+            this._onOneSignalUserOrSubscriptionChanged.bind(this);
+    }
+
+    componentWillUnmount() {
+        this._keyboardShowSub?.remove();
+        this._keyboardHideSub?.remove();
+        OneSignal.Notifications.removeEventListener(
+            'click',
+            this._onOneSignalNotificationClick,
+        );
+        OneSignal.User.removeEventListener(
+            'change',
+            this._onOneSignalUserOrSubscriptionChanged,
+        );
+        OneSignal.User.pushSubscription.removeEventListener(
+            'change',
+            this._onOneSignalUserOrSubscriptionChanged,
+        );
+    }
+
+    _onOneSignalNotificationClick(event) {
+        console.log('OneSignal: notification opened:', event);
+    }
+
+    _onOneSignalUserOrSubscriptionChanged(_event) {
+        this._syncOneSignalIdToState();
+    }
+
+    async _syncOneSignalIdToState() {
+        try {
+            let id = await OneSignal.User.getOnesignalId();
+            if (!id) {
+                id = await OneSignal.User.pushSubscription.getIdAsync();
+            }
+            if (id) {
+                this.setState({oneSignalId: id});
+            }
+        } catch (_e) {
+            // ignore
+        }
+    }
+
+    _setupOneSignal() {
+        if (!oneSignalNativeInitialized) {
+            OneSignal.initialize(ONESIGNAL_APP_ID);
+            oneSignalNativeInitialized = true;
+        }
+        OneSignal.Notifications.addEventListener(
+            'click',
+            this._onOneSignalNotificationClick,
+        );
+        OneSignal.User.addEventListener(
+            'change',
+            this._onOneSignalUserOrSubscriptionChanged,
+        );
+        OneSignal.User.pushSubscription.addEventListener(
+            'change',
+            this._onOneSignalUserOrSubscriptionChanged,
+        );
+        OneSignal.Notifications.requestPermission(false).catch(() => {});
+        this._syncOneSignalIdToState();
     }
     handleGoBack = () => {
         if(this.state.currentUrl.indexOf('/my/') == -1) {
@@ -55,59 +123,59 @@ export default class HomeView extends Component {
                     { text: 'Hủy', style: 'cancel' },
                     { text: 'Đồng ý', onPress: () => {
                         let newurl = new URL(this.state.url);
-                        // Logout trong trường hợp trên link misa
-                        if(this.state.url.indexOf('/lms/') > -1) {
-                            this.setState({url:newurl.origin+'/lms/login/logout.php?sesskey='+this.state.session,session:''})
-                        } else {
-                            this.setState({url:newurl.origin+'/login/logout.php?sesskey='+this.state.session,session:''})
-                        }
-                        this.setState({isMenuOpen:false})
+                        const logoutPath =
+                            this.state.url.indexOf('/lms/') > -1
+                                ? '/lms/login/logout.php?sesskey='
+                                : '/login/logout.php?sesskey=';
+                        this.setState({
+                            url: newurl.origin + logoutPath + this.state.session,
+                            session: '',
+                            isMenuOpen: false,
+                            username: '',
+                            password: '',
+                            saas_userdata: '',
+                        });
                         deleteData('username');
                         deleteData('password');
-                        deleteData('saas_userdata')
+                        deleteData('saas_userdata');
                     }},
                 ]
             )
         },
     ]
     async componentDidMount() {
-        let url = await getData('url');
-        let username = await getData('username');
-        let password = await getData('password');
-        let saas_userdata = await getData('saas_userdata');
+        const [storedUrl, username, password, saas_userdata] = await Promise.all([
+            getData('url'),
+            getData('username'),
+            getData('password'),
+            getData('saas_userdata'),
+        ]);
+        const resolvedUrl = this.props.redirectUrl
+            ? this.props.redirectUrl
+            : storedUrl
+              ? storedUrl
+              : '';
         this.setState({
-            username: username,
-            password: password,
-            saas_userdata: saas_userdata,
+            url: resolvedUrl,
+            username: username ?? '',
+            password: password ?? '',
+            saas_userdata: saas_userdata ?? '',
             firstMount: true,
-            storageReady: true
-        })
-        if(this.props.redirectUrl) {
-            this.setState({url: this.props.redirectUrl})
-        } else {
-            this.setState({url: url ? url : ''})
-        }
-
-        Keyboard.addListener('keyboardDidShow', () => {
-            this.setState({keyBoard:true})
-        })
-        Keyboard.addListener('keyboardDidHide', () => {
-            this.setState({keyBoard:false})
-        })
-        // Đẩy thông báo App
-        OneSignal.setAppId("ee0b4c19-f714-4891-b390-5dd250575a18");
-        //Method for handling notifications opened
-        OneSignal.setNotificationOpenedHandler(notification => {
-            console.log("OneSignal: notification opened:", notification);
+            storageReady: true,
         });
-        OneSignal.getDeviceState().then(deviceState => {
-            this.setState({oneSignalId:deviceState.userId})
-        })
+
+        this._keyboardShowSub = Keyboard.addListener('keyboardDidShow', () => {
+            this.setState({keyBoard: true});
+        });
+        this._keyboardHideSub = Keyboard.addListener('keyboardDidHide', () => {
+            this.setState({keyBoard: false});
+        });
+        this._setupOneSignal();
     }
 
     setUrlDev = () => {
         let url = 'your-url-when-developing';
-        // let url = 'http://172.21.30.105:8990/auth/saas/index.php?applms=true';
+        // let url = 'https://pedn.vnresource.net:9191/login/index.php?applms=true';
         let newurl = new URL(url);
         let searchParams  = new URLSearchParams(newurl.search);
         if(Validate.isUrlValid(url) && this.state.session) {
@@ -149,6 +217,7 @@ export default class HomeView extends Component {
                             this.handleGoBack()
                         } else {
                             this.setState({scanQRCode:true})
+                            // this.setUrlDev()
                         }
                     }}
                 />
@@ -191,10 +260,11 @@ export default class HomeView extends Component {
                             let newurl = new URL(e.data);
                             let searchParams  = new URLSearchParams(newurl.search);
                             if(Validate.isUrlValid(e.data) && this.state.session) {
+                                this.props.onClearRedirectUrl?.();
                                 this.setState({url:e.data,scanQRCode:false})
                             } else if(Validate.isUrlValid(e.data) && (searchParams.get('applms') == 'true')) {
+                                this.props.onClearRedirectUrl?.();
                                 this.setState({url:e.data,scanQRCode:false})
-                                this.props.redirectUrl = '';
                                 saveData('url',e.data)
                             } else {
                                 Alert.alert('Cảnh báo', 'Địa chỉ không hợp lệ',[

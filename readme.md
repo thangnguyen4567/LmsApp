@@ -5,6 +5,7 @@
 https://reactnative.dev/docs/set-up-your-environment?os=windows&platform=android
 - Đối với IOS 
 https://reactnative.dev/docs/set-up-your-environment?os=macos&platform=android
+- Node version >= 22.11.0
 
 ## Cài đặt dependencies
 ```bash

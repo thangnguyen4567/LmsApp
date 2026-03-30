@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome5';
 import { colors } from '../constants';
 
@@ -12,32 +12,31 @@ export default function WelcomePlaceholder(props) {
       contentContainerStyle={styles.scrollContent}
       style={styles.scroll}
       keyboardShouldPersistTaps="handled">
-      <View style={styles.iconWrap}>
+      <TouchableOpacity style={styles.iconWrap} onPress={() => props.setScanQRCode(true)}>
         <Icon
           name="qrcode"
           size={40}
           color={colors.systemcolor}
-          onPress={() => props.setScanQRCode(true)}
         />
-      </View>
+      </TouchableOpacity>
 
       <Text style={styles.title}>Chào mừng đến với AILearning</Text>
 
       <Text style={styles.body}>
-        Đây là trang mặc định. Để mở nội dung học tập, hãy sử dụng chức năng quét
-        mã QR trên thanh header phía trên.
+        Để mở nội dung học tập, vui lòng sử dụng chức năng quét
+        mã QR trên thanh header hoặc biểu tượng QR phía trên.
       </Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Hướng dẫn</Text>
         <Text style={styles.cardBody}>
-          Nhấn vào biểu tượng quét mã QR trên header → Quét mã QR của project →
-          Ứng dụng sẽ tải và hiển thị nội dung tương ứng.
+          Nhấn vào biểu tượng quét mã QR trên header hoặc biểu tượng QR phía trên → Quét mã QR của trang LMS →
+          Ứng dụng sẽ tải và hiển thị nội dung học tập cho bạn.
         </Text>
       </View>
 
       <Text style={styles.footer}>
-        Trang này sẽ được thay thế khi bạn quét mã QR và load link project.
+        Trang này sẽ được thay thế sau khi bạn quét mã QR thành công.
       </Text>
     </ScrollView>
   );

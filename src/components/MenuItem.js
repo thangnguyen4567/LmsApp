@@ -1,38 +1,35 @@
 import React,{Component} from 'react';
 import Icon from 'react-native-vector-icons/FontAwesome5'
 import { 
-FlatList,
-TouchableOpacity,
-View,
-Text,
-StyleSheet,
-Platform
+    FlatList,
+    TouchableOpacity,
+    View,
+    Text,
+    StyleSheet,
+    Platform
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default class MenuItem extends Component {
-    renderItem = ({item}) => {
-        return (
-            <TouchableOpacity onPress={item.onPress}>
-                <View style={style.view}>
-                    <Icon            
-                        name={item.icon}
-                        style={style.icon}
-                        size={18}
-                    />
-                    <Text style={{color:'black'}}>{item.title}</Text>
-                </View>
-            </TouchableOpacity>
-        )
-    }
-    render() {
-        return (
-            <FlatList
-                data={this.props.dataMenu}
-                renderItem={this.renderItem}
-                style={style.menu}
-            />
-        )
-    }
+const TOOLBAR = 40;
+
+export default function MenuItem({ dataMenu }) {
+    const insets = useSafeAreaInsets();
+    const menuTop = Platform.OS === 'ios' ? 40 + TOOLBAR : insets.top + TOOLBAR;
+    const renderItem = ({ item }) => (
+        <TouchableOpacity onPress={item.onPress}>
+        <View style={style.view}>
+            <Icon name={item.icon} style={style.icon} size={18} />
+            <Text style={{ color: 'black' }}>{item.title}</Text>
+        </View>
+        </TouchableOpacity>
+    );
+    return (
+        <FlatList
+            data={dataMenu}
+            renderItem={renderItem}
+            style={[style.menu, { top: menuTop }]}
+        />
+    );
 }
 const style = StyleSheet.create({
     view: {
@@ -49,11 +46,10 @@ const style = StyleSheet.create({
     },
     menu: {
         position: 'absolute',
-        top: Platform.OS == 'ios' ? 80 : 40,
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 999, 
-        backgroundColor:'white',
-    }
+        zIndex: 999,
+        backgroundColor: 'white',
+    },
 })
