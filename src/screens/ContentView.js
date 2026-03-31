@@ -32,6 +32,12 @@ export default class ContentView extends Component {
     render() { 
         const INJECTED_JAVASCRIPT = `
             document.cookie = 'appuserid=${this.props.oneSignalId}';
+            setTimeout(() => {
+                const targetElements = document.querySelectorAll('[target]');
+                targetElements.forEach(element => {
+                    element.removeAttribute('target');
+                });
+            }, 2000)
         `;
         // Xư lý các thông tin được gửi từ web
         const listenFromWeb = async (event) => {
