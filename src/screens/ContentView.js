@@ -1,14 +1,13 @@
-import React, {Component} from 'react';
-import {WebView} from 'react-native-webview';
-import {URL} from 'react-native-url-polyfill';
-import {saveData,getData} from '../components/AsyncStorage';
+import React, { Component } from 'react';
+import { WebView } from 'react-native-webview';
+import { URL } from 'react-native-url-polyfill';
+import { saveData } from '../components/AsyncStorage';
 import {
   StyleSheet,
   View,
   BackHandler,
   ActivityIndicator,
   Linking,
-  Alert,
   Platform,
 } from 'react-native';
 
@@ -32,11 +31,7 @@ export default class ContentView extends Component {
     }
     render() { 
         const INJECTED_JAVASCRIPT = `
-        document.cookie = 'appuserid=${this.props.oneSignalId}';
-        const targetElements = document.querySelectorAll('[target]');
-        targetElements.forEach(element => {
-            element.removeAttribute('target');
-        });
+            document.cookie = 'appuserid=${this.props.oneSignalId}';
         `;
         // Xư lý các thông tin được gửi từ web
         const listenFromWeb = async (event) => {
@@ -89,7 +84,7 @@ export default class ContentView extends Component {
                     onLoadStart={() => this.setState({visible:true})}
                     setsupportmultiplewindows={false}
                     onShouldStartLoadWithRequest={request => {
-                        if(Platform.OS == 'android') {
+                        if(Platform.OS === 'android') {
                             let rooturl = new URL(this.props.url);
                             // Kiểm tra nếu url vẫn là url của lms thì mới load (hoặc url đăng nhập của misa)
                             if (request.url.startsWith(rooturl.origin) || 
@@ -115,7 +110,7 @@ export default class ContentView extends Component {
                     onMessage={(event) => listenFromWeb(event)}
                     javaScriptEnabled={true}
                 />
-                {this.state.visible == true && <ActivityIndicator
+                {this.state.visible === true && <ActivityIndicator
                     style={styles.loading}
                     size="large"
                 />}

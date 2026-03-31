@@ -127,7 +127,7 @@ export default class HomeView extends Component {
         this._syncOneSignalIdToState();
     }
     handleGoBack = () => {
-        if(this.state.currentUrl.indexOf('/my/') == -1) {
+        if(this.state.currentUrl.indexOf('/my/') === -1) {
             if(this.webViewRef.current) {
                 this.webViewRef.current.goBack();
             }
@@ -199,7 +199,7 @@ export default class HomeView extends Component {
         let searchParams  = new URLSearchParams(newurl.search);
         if(Validate.isUrlValid(url) && this.state.session) {
             this.setState({url:url,scanQRCode:false})
-        } else if(Validate.isUrlValid(url) && (searchParams.get('applms') == 'true')) {
+        } else if(Validate.isUrlValid(url) && (searchParams.get('applms') === 'true')) {
             this.setState({url:url,scanQRCode:false})
             this.props.redirectUrl = '';
             saveData('url',url)
@@ -225,7 +225,7 @@ export default class HomeView extends Component {
                     rightIconName={(this.state.session) ? 'list' : undefined}
                     leftIconName={(this.state.session) ? 'angle-left' : 'qrcode'}
                     onPressRightIcon={() => {
-                        if(this.state.isMenuOpen == false) {
+                        if(this.state.isMenuOpen === false) {
                             this.setState({isMenuOpen:true})
                         } else {
                             this.setState({isMenuOpen:false})
@@ -240,11 +240,11 @@ export default class HomeView extends Component {
                         }
                     }}
                 />
-                {this.state.isMenuOpen == true &&
+                {this.state.isMenuOpen === true &&
                     <MenuItem dataMenu={this.dataMenu} />
                 }
                 {/* Webview load trang web */}
-                {this.state.scanQRCode == false ? ( 
+                {this.state.scanQRCode === false ? ( 
                     !this.state.storageReady ? (
                         <View style={styles.contentLoading}>
                             <ActivityIndicator size="large" />
@@ -281,7 +281,7 @@ export default class HomeView extends Component {
                             if(Validate.isUrlValid(e.data) && this.state.session) {
                                 this.props.onClearRedirectUrl?.();
                                 this.setState({url:e.data,scanQRCode:false})
-                            } else if(Validate.isUrlValid(e.data) && (searchParams.get('applms') == 'true')) {
+                            } else if(Validate.isUrlValid(e.data) && (searchParams.get('applms') === 'true')) {
                                 this.props.onClearRedirectUrl?.();
                                 this.setState({url:e.data,scanQRCode:false})
                                 saveData('url',e.data)
