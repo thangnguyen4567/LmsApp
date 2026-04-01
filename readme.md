@@ -48,6 +48,14 @@ npm run android
 ```bash
 npx react-native run-android --mode release 
 ```
+hoặc
+```bash
+npm run android:release
+```
+### Build ra file APK để test trước
+```bash
+npm run android:apk
+```
 
 ## Đưa app lên ch play: 
 Cập nhật versioncode theo đường dẫn android/app/build.gradle
@@ -57,6 +65,10 @@ Chạy lệnh:
 ```bash
 Cd android
 .\gradlew bundleRelease
+```
+hoặc
+```bash
+npm run android:aab
 ```
 
 Vào đường dẫn .\android\app\build\outputs\bundle\release tìm file app-release.aab và đưa file này lên ch play

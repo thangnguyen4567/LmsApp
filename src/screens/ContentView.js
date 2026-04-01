@@ -76,7 +76,6 @@ export default class ContentView extends Component {
         return (
             <View style={styles.container}>
                 <WebView
-                    startInLoadingState={() => this.setState({visible:true})}
                     ref={this.props.webViewRef}
                     source={{
                         uri: this.state.webview ? this.state.webview : this.props.url,
@@ -94,16 +93,17 @@ export default class ContentView extends Component {
                             let rooturl = new URL(this.props.url);
                             // Kiểm tra nếu url vẫn là url của lms thì mới load (hoặc url đăng nhập của misa)
                             if (request.url.startsWith(rooturl.origin) || 
-                            request.url.startsWith('https://amisapp.misa.vn/') ||
-                            request.url.startsWith('https://misajsc.amis.vn/') ||
-                            request.url.startsWith('https://testmisajsc.amis.vn/')) {
+                                request.url.startsWith('https://amisapp.misa.vn/') ||
+                                request.url.startsWith('https://misajsc.amis.vn/') ||
+                                request.url.startsWith('https://testmisajsc.amis.vn/')
+                            ) {
                                 return true; // Cho phép tải trang mới
-                            } else {
-                                if (!request.url.includes('google.com') && !request.url.includes('notify.misa')) {
-                                    Linking.openURL(request.url);
-                                    return false; // Chặn yêu cầu tải trang mới
-                                }
                             }
+                            if (!request.url.includes('google.com') && !request.url.includes('notify.misa')) {
+                                Linking.openURL(request.url);
+                                return false; // Chặn yêu cầu tải trang mới
+                            }
+                            return true;
                         } else {
                             return true;
                         }
@@ -111,8 +111,6 @@ export default class ContentView extends Component {
                     onLoadEnd={() => {
                         this.setState({visible:false})
                     }}
-                    cacheMode='LOAD_NO_CACHE'
-                    cacheEnabled={false}
                     onMessage={(event) => listenFromWeb(event)}
                     javaScriptEnabled={true}
                 />
