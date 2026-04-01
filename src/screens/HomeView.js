@@ -194,14 +194,14 @@ export default class HomeView extends Component {
 
     setUrlDev = () => {
         let url = 'your-url-when-developing';
-        // let url = 'https://pedn.vnresource.net:9191/login/index.php?applms=true';
         let newurl = new URL(url);
         let searchParams  = new URLSearchParams(newurl.search);
         if(Validate.isUrlValid(url) && this.state.session) {
+            this.props.onClearRedirectUrl?.();
             this.setState({url:url,scanQRCode:false})
         } else if(Validate.isUrlValid(url) && (searchParams.get('applms') === 'true')) {
+            this.props.onClearRedirectUrl?.();
             this.setState({url:url,scanQRCode:false})
-            this.props.redirectUrl = '';
             saveData('url',url)
         } else {
             Alert.alert('Cảnh báo', 'Địa chỉ không hợp lệ',[
@@ -236,6 +236,7 @@ export default class HomeView extends Component {
                             this.handleGoBack()
                         } else {
                             this.setState({scanQRCode:true})
+                            // uncomment this to use dev url
                             // this.setUrlDev()
                         }
                     }}

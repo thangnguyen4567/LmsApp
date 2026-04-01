@@ -60,7 +60,7 @@ Cd android
 ```
 
 Vào đường dẫn .\android\app\build\outputs\bundle\release tìm file app-release.aab và đưa file này lên ch play
-Truy cập vào trang https://play.google.com/console/u/0/developers đăng nhập bằng tài khoản developer. chọn app cần cập nhật. vào phần release management -> edit -> upload apk -> chọn file app-release.aab -> upload -> cập nhật version -> upload
+Truy cập vào trang https://play.google.com/console/u/0/developers đăng nhập bằng tài khoản developer. Chọn app cần cập nhật bấm View app. Tiếp theo vào Test and Release > Production > Sang tab Releases > Bấm Create new release > Upload file aab vừa build > Save > Chờ GG checking > Sau khi check xong nếu pass thì sẽ Bấm được nút Send -number- change for review > Chờ review có thể lên đến 7 Ngày > Sau khi đã review hoàn tất bấm nút Publish màu xanh dương là được
 
 # IOS
 
@@ -86,7 +86,7 @@ cd .. && npm run ios
 
 ```bash
 npm run create-bundle
-npx react-native run-ios --configuration Release
+npx react-native run-ios --mode Release
 ```
 
 ## Đưa APP lên App Store
