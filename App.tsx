@@ -8,6 +8,9 @@ import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
+import CodePush from '@revopush/react-native-code-push';
+import CodePushUpdateModal from './src/components/CodePushUpdateModal';
+import {useCodePushUpdateChecker} from './src/hooks/useCodePushUpdateChecker';
 
 export type RootStackParamList = {
   Home: {url?: string} | undefined;
@@ -81,14 +84,24 @@ function HomeScreen({
   );
 }
 
-export default function App() {
+function App() {
+  const {remote, dismiss} = useCodePushUpdateChecker();
+
   return (
-    <SafeAreaProvider>
-      <NavigationContainer linking={linking}>
-        <Stack.Navigator screenOptions={{headerShown: false}}>
-          <Stack.Screen name="Home" component={HomeScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <>
+      <SafeAreaProvider>
+        <NavigationContainer linking={linking}>
+          <Stack.Navigator screenOptions={{headerShown: false}}>
+            <Stack.Screen name="Home" component={HomeScreen} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaProvider>
+      <CodePushUpdateModal update={remote} onDismiss={dismiss} />
+    </>
   );
 }
+
+export default CodePush({
+  checkFrequency: CodePush.CheckFrequency.ON_APP_RESUME,
+  updateDialog: false,
+})(App);

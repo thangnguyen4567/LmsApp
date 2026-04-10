@@ -151,7 +151,7 @@ npm install -g
 # Đăng nhập với URL API
 code-push-standalone register https://codepush.vnresource.net:2080/
 ```
-
+Sau khi đăng ký, liên hệ owner app để được add vào collaborator
 ## 3. Cập nhật ứng dụng
 
 ### Android
@@ -167,11 +167,11 @@ code-push-standalone release-react AILearning_Ios IOS -d Production
 ## 4. Thông tin Deployment Key
 
 ### Android
-```
-Production: 3Epv-N3KNUHuoh3HPqeYRrPRYZm4EyXs9Xxkfl
-```
+
+Production: xF_MqVMKHZ6Xo71ZSaFVnjWagPe-N1yM0c0oQl
+Staging: bD60CuQqzOXI4SchYq4v-92rHeHTN1yM0c0oQl
 
 ### iOS
-```
-Production: _5QZeVBLxIlOcQvsbTC4pG3r-hwKEyXs9Xxkfl
-```
+
+Production: a3aYVzIbvkcSXTY0no_Kvc4bFM47N1yM0c0oQl
+Staging: 1pXNzjtRAC94l2FVF2oeLfoxXLGrN1yM0c0oQl

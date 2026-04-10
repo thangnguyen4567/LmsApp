@@ -23,21 +23,21 @@ export default function WelcomePlaceholder(props) {
       <Text style={styles.title}>Chào mừng đến với AILearning</Text>
 
       <Text style={styles.body}>
-        Để mở nội dung học tập, vui lòng sử dụng chức năng quét
-        mã QR trên thanh header hoặc biểu tượng QR phía trên.
+        Để bắt đầu, vui lòng kết nối đến hệ thống học tập của bạn bằng cách làm theo hướng dẫn bên dưới.
       </Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Hướng dẫn</Text>
         <Text style={styles.cardBody}>
-          Nhấn vào biểu tượng quét mã QR trên header hoặc biểu tượng QR phía trên → Quét mã QR của trang LMS →
-          Ứng dụng sẽ tải và hiển thị nội dung học tập cho bạn.
+          1. Nhấn vào biểu tượng quét mã QR phía trên.
+        </Text>
+        <Text style={styles.cardBody}>
+          2. Quét mã QR từ hệ thống ELearning bạn đang sử dụng.
+        </Text>
+        <Text style={styles.cardBody}>
+          3. Ứng dụng sẽ kết nối đến hệ thống tương ứng và chuyển đến màn hình đăng nhập.
         </Text>
       </View>
-
-      <Text style={styles.footer}>
-        Trang này sẽ được thay thế sau khi bạn quét mã QR thành công.
-      </Text>
     </ScrollView>
   );
 }
@@ -89,6 +89,8 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
+    maxWidth: Platform.isPad ? 520 : undefined,
+    alignSelf: Platform.isPad ? 'center' : undefined,
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
@@ -116,7 +118,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     lineHeight: 22,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   footer: {
     fontSize: 13,

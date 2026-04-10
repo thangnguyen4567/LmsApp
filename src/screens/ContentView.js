@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
+  Text,
+  TouchableOpacity,
 } from 'react-native';
 
 export default class ContentView extends Component {
@@ -17,6 +19,7 @@ export default class ContentView extends Component {
         this.state = {
             visible: true,
             webview:'',
+            loadFailed: false,
         };
     }
     componentDidMount() {
@@ -113,11 +116,31 @@ export default class ContentView extends Component {
                     }}
                     onMessage={(event) => listenFromWeb(event)}
                     javaScriptEnabled={true}
+                    onError={() => this.setState({loadFailed:true})}
+                    onHttpError={(e) => {
+                        const status = e.nativeEvent?.statusCode;
+                        if (status >= 400) {
+                            this.setState({ loadFailed: true });
+                        }
+                    }}
                 />
                 {this.state.visible === true && <ActivityIndicator
                     style={styles.loading}
                     size="large"
                 />}
+                {this.state.loadFailed && (
+                    <View style={styles.errorOverlay}>
+                        <Text>Không tải được trang. Máy chủ có thể đang bảo trì, vui lòng thử lại hoặc liên hệ admin.</Text>
+                        <TouchableOpacity
+                            onPress={() => {
+                                this.setState({ loadFailed: false, visible: true });
+                                this.props.webViewRef.current?.reload();
+                            }}
+                        >
+                            <Text>Thử lại</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         )
     };
@@ -136,5 +159,16 @@ const styles = StyleSheet.create({
         bottom: 0,
         alignItems: 'center',
         justifyContent: 'center'
+    },
+    errorOverlay: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
     }
 });

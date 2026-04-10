@@ -130,4 +130,5 @@ dependencies {
 }
 
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
+apply from: "../../node_modules/@revopush/react-native-code-push/android/codepush.gradle"
 apply plugin: "com.google.gms.google-services"

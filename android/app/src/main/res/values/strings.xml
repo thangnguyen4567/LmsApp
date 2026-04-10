@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">AILearning</string>
-    <string moduleConfig="true" name="CodePushDeploymentKey">3Epv-N3KNUHuoh3HPqeYRrPRYZm4EyXs9Xxkfl</string>
+    <string moduleConfig="true" name="CodePushDeploymentKey">xF_MqVMKHZ6Xo71ZSaFVnjWagPe-N1yM0c0oQl</string>
+    <string moduleConfig="true" name="CodePushServerUrl">https://codepush.vnresource.net:2080/</string>
     <string name="appCenterCrashes_whenToSendCrashes" moduleConfig="true" translatable="false">DO_NOT_ASK_JAVASCRIPT</string>
     <string name="appCenterAnalytics_whenToEnableAnalytics" moduleConfig="true" translatable="false">ALWAYS_SEND</string>
 </resources>

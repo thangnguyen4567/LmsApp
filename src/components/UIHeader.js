@@ -2,7 +2,8 @@ import React from "react";
 import {
     Text,
     View,
-    Platform
+    Platform,
+    Pressable
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome5'
@@ -32,14 +33,21 @@ function UIHeader(props) {
             justifyContent: 'space-between',
             alignItems: 'center',
         }}>
-            {leftIconName != undefined ? (
-                <Icon
-                    name={leftIconName}
-                    style={{ padding: 10 }}
-                    size={22}
-                    color={'white'}
+            {leftIconName !== undefined ? (
+                <Pressable
                     onPress={onPressLeftIcon}
-                />
+                    hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    style={{
+                        paddingVertical: 10,
+                        paddingHorizontal: 16,
+                        minWidth: 48,
+                        minHeight: 48,
+                        justifyContent: 'center',
+                        alignItems: 'flex-start',
+                    }}
+                >
+                    <Icon name={leftIconName} size={22} color="white" />
+                </Pressable>
             ) : (
                 <View style={{ width: 50, height: 50 }} />
             )}
@@ -55,7 +63,7 @@ function UIHeader(props) {
             >
                 {title}
             </Text>
-            {rightIconName != undefined ? (
+            {rightIconName !== undefined ? (
                 <Icon
                     name={rightIconName}
                     style={{ padding: 10 }}
