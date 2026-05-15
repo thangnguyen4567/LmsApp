@@ -87,16 +87,27 @@ export default class ContentView extends Component {
                     }}
                     injectedJavaScript={INJECTED_JAVASCRIPT}
                     onLoadStart={() => this.setState({visible:true})}
-                    setsupportmultiplewindows={false}
+                    setSupportMultipleWindows={false}
                     onShouldStartLoadWithRequest={request => {
                         if(Platform.OS === 'android') {
-                            let rooturl = new URL(this.props.url);
-                            // Kiểm tra nếu url vẫn là url của lms thì mới load (hoặc url đăng nhập của misa)
-                            if (request.url.startsWith(rooturl.origin) || 
-                                request.url.startsWith('https://amisapp.misa.vn/') ||
-                                request.url.startsWith('https://misajsc.amis.vn/') ||
-                                request.url.startsWith('https://testmisajsc.amis.vn/')
-                            ) {
+                            let rooturl;
+                            try {
+                                rooturl = new URL(this.props.url);
+                            } catch (e) {
+                                Linking.openURL(request.url);
+                                return false;
+                            }
+                            // Normalize: so sánh không phân biệt http/https
+                            const normalizeUrl = (url) => url.replace(/^https?:\/\//, '');
+                            const reqNorm = normalizeUrl(request.url);
+                            const isWhitelisted = (
+                                reqNorm.startsWith(normalizeUrl(rooturl.origin)) ||
+                                reqNorm.startsWith('amisapp.misa.vn/') ||
+                                reqNorm.startsWith('misajsc.amis.vn/') ||
+                                reqNorm.startsWith('testmisajsc.amis.vn/') ||
+                                reqNorm.startsWith('testamisapp.misa.vn/')
+                            );
+                            if (isWhitelisted) {
                                 return true; // Cho phép tải trang mới
                             }
                             if (!request.url.includes('google.com') && !request.url.includes('notify.misa')) {
