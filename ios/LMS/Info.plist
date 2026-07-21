@@ -53,9 +53,9 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Ứng dụng của bạn cần truy cập vị trí</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Access to photos is required for image loading.</string>
+	<string>Ứng dụng cần quyền truy cập micro để hỗ trợ nhập liệu bằng giọng nói trong tính năng AI chat.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Access to photos is required for image loading.</string>
+	<string>Ứng dụng cần quyền truy cập thư viện ảnh để tải ảnh lên trong tính năng AI chat.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIAppFonts</key>

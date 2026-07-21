@@ -1,13 +1,15 @@
 import React, {Component} from 'react';
+import {withTranslation} from 'react-i18next';
 import ContentView from "./ContentView";
 import Validate from '../components/Validate';
 import UIHeader from '../components/UIHeader';
+import {setAppLanguage} from '../i18n';
 import {colors} from '../constants'
 import {URL,URLSearchParams} from 'react-native-url-polyfill';
 import {OneSignal} from 'react-native-onesignal';
 import {PERMISSIONS, request} from 'react-native-permissions';
 import {saveData,getData,deleteData} from '../components/AsyncStorage';
-import MenuItem from '../components/MenuItem';
+import ActionGridModal from '../components/ActionGridModal';
 import {
   StyleSheet,
   View,
@@ -21,7 +23,7 @@ import WelcomePlaceholder from './WelcomePlaceholder';
 const ONESIGNAL_APP_ID = '5fedb6e7-a3d6-4767-ae98-5d17e30dc778';
 let oneSignalNativeInitialized = false;
 
-export default class HomeView extends Component {
+class HomeView extends Component {
     constructor(props) {
         super(props);
         this.webViewRef = React.createRef();
@@ -133,35 +135,6 @@ export default class HomeView extends Component {
             }
         }
     };
-    dataMenu = [
-        { icon: 'qrcode', title: 'Quét mã QR', onPress: () => this.setState({scanQRCode:true, isMenuOpen:false})},
-        { icon: 'sign-out-alt', title: 'Đăng xuất', onPress: () => Alert.alert(
-                'Xác nhận đăng xuất',
-                `Bạn có chắc muốn đăng xuất?`,
-                [
-                    { text: 'Hủy', style: 'cancel' },
-                    { text: 'Đồng ý', onPress: () => {
-                        let newurl = new URL(this.state.url);
-                        const logoutPath =
-                            this.state.url.indexOf('/lms/') > -1
-                                ? '/lms/login/logout.php?sesskey='
-                                : '/login/logout.php?sesskey=';
-                        this.setState({
-                            url: newurl.origin + logoutPath + this.state.session,
-                            session: '',
-                            isMenuOpen: false,
-                            username: '',
-                            password: '',
-                            saas_userdata: '',
-                        });
-                        deleteData('username');
-                        deleteData('password');
-                        deleteData('saas_userdata');
-                    }},
-                ]
-            )
-        },
-    ]
     async componentDidMount() {
         const [storedUrl, username, password, saas_userdata] = await Promise.all([
             getData('url'),
@@ -204,8 +177,9 @@ export default class HomeView extends Component {
             this.setState({url:url,scanQRCode:false})
             saveData('url',url)
         } else {
-            Alert.alert('Cảnh báo', 'Địa chỉ không hợp lệ',[
-                {text: 'Trở về',onPress: () => 
+            const {t} = this.props;
+            Alert.alert(t('alert.invalidUrlTitle'), t('alert.invalidUrlMessage'),[
+                {text: t('common.goBack'),onPress: () => 
                     {
                         this.setState({scanQRCode:false})
                     }
@@ -214,22 +188,57 @@ export default class HomeView extends Component {
         }
     }
     render() {
+        const {t} = this.props;
+        const dataMenu = [
+            { icon: 'qrcode', title: t('menu.scanQr'), onPress: () => this.setState({scanQRCode:true, isMenuOpen:false})},
+            { icon: 'sign-out-alt', title: t('menu.logout'), onPress: () => Alert.alert(
+                t('logout.confirmTitle'),
+                t('logout.confirmMessage'),
+                [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    { text: t('common.agree'), onPress: () => {
+                        let newurl = new URL(this.state.url);
+                        const logoutPath =
+                            this.state.url.indexOf('/lms/') > -1
+                                ? '/lms/login/logout.php?sesskey='
+                                : '/login/logout.php?sesskey=';
+                        this.setState({
+                            url: newurl.origin + logoutPath + this.state.session,
+                            session: '',
+                            isMenuOpen: false,
+                            username: '',
+                            password: '',
+                            saas_userdata: '',
+                        });
+                        deleteData('username');
+                        deleteData('password');
+                        deleteData('saas_userdata');
+                    }},
+                ]
+            )
+            },
+        ];
         const webUrl = (this.props.redirectUrl || this.state.url || '').trim();
         const hasWebUrl = webUrl.length > 0;
-
+        let leftIconName = null;
+        if (this.state.session) {
+            if (!this.state.scanQRCode) {
+                leftIconName = 'angle-left';
+            }
+        } else {
+            if (!this.state.scanQRCode) {
+                leftIconName = 'qrcode';
+            }
+        }
         return (
             <View style={styles.container}>
                 {/* header */}
                 <UIHeader 
-                    title={this.state.webTitle}
-                    rightIconName={(this.state.session) ? 'list' : undefined}
-                    leftIconName={(this.state.session) ? 'angle-left' : 'qrcode'}
+                    title={this.state.scanQRCode ? t('header.scanQr') : this.state.webTitle}
+                    rightIconName={(this.state.session && !this.state.scanQRCode) ? 'ellipsis-v' : undefined}
+                    leftIconName={leftIconName ? leftIconName : undefined}
                     onPressRightIcon={() => {
-                        if(this.state.isMenuOpen === false) {
-                            this.setState({isMenuOpen:true})
-                        } else {
-                            this.setState({isMenuOpen:false})
-                        }
+                        this.setState(s => ({ isMenuOpen: !s.isMenuOpen }));
                     }}
                     onPressLeftIcon={() => {
                         if(this.state.session) {
@@ -241,9 +250,19 @@ export default class HomeView extends Component {
                         }
                     }}
                 />
-                {this.state.isMenuOpen === true &&
-                    <MenuItem dataMenu={this.dataMenu} />
-                }
+                <ActionGridModal
+                    visible={
+                        Boolean(
+                            this.state.isMenuOpen &&
+                                this.state.session &&
+                                hasWebUrl &&
+                                this.state.storageReady &&
+                                !this.state.scanQRCode,
+                        )
+                    }
+                    onRequestClose={() => this.setState({ isMenuOpen: false })}
+                    actions={dataMenu}
+                />
                 {/* Webview load trang web */}
                 {this.state.scanQRCode === false ? ( 
                     !this.state.storageReady ? (
@@ -265,6 +284,8 @@ export default class HomeView extends Component {
                             saas_userdata={this.state.saas_userdata}
                             webViewRef={this.webViewRef}
                             setCurrentUrl={(data) => this.setState({currentUrl:data})}
+                            sessKey={this.state.session}
+                            setUrl={(data) => this.setState({url:data})}
                         />
                     )
                 ) : (
@@ -366,3 +387,5 @@ const styles = StyleSheet.create({
         textAlign: 'center'
     }
 });
+
+export default withTranslation()(HomeView);

@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useRef} from 'react';
+import {useTranslation} from 'react-i18next';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {
   Camera,
@@ -9,6 +10,7 @@ import {
 import {colors, fontSizes} from '../constants';
 
 export default function Scanner({onScanner, onBack, onPress}) {
+  const {t} = useTranslation();
   const device = useCameraDevice('back');
   const {hasPermission, requestPermission} = useCameraPermission();
   const scannedRef = useRef(false);
@@ -46,15 +48,15 @@ export default function Scanner({onScanner, onBack, onPress}) {
       <View style={styles.panel}>
         <View style={styles.center}>
           <Text style={styles.messageText}>
-            Cần quyền camera để quét mã QR.
+            {t('scanner.needCamera')}
           </Text>
           <TouchableOpacity
             onPress={() => requestPermission()}
             style={styles.buttonTouchable}>
-            <Text style={styles.buttonText}>Cho phép camera</Text>
+            <Text style={styles.buttonText}>{t('scanner.allowCamera')}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={onBack} style={styles.buttonTouchable}>
-            <Text style={styles.buttonText}>Trở về</Text>
+            <Text style={styles.buttonText}>{t('common.goBack')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -65,9 +67,9 @@ export default function Scanner({onScanner, onBack, onPress}) {
     return (
       <View style={styles.panel}>
         <View style={styles.center}>
-          <Text style={styles.messageText}>Không tìm thấy camera.</Text>
+          <Text style={styles.messageText}>{t('scanner.noCamera')}</Text>
           <TouchableOpacity onPress={onBack} style={styles.buttonTouchable}>
-            <Text style={styles.buttonText}>Trở về</Text>
+            <Text style={styles.buttonText}>{t('common.goBack')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -77,7 +79,7 @@ export default function Scanner({onScanner, onBack, onPress}) {
   return (
     <View style={styles.panel}>
       <View style={styles.hintRow}>
-        <Text style={styles.hintText}>Đưa camera mã QR để lấy URL</Text>
+        <Text style={styles.hintText}>{t('scanner.hint')}</Text>
       </View>
       <View style={styles.cameraMiddle}>
         <View style={styles.cameraFrame}>
@@ -91,7 +93,7 @@ export default function Scanner({onScanner, onBack, onPress}) {
       </View>
       <View style={styles.footer}>
         <TouchableOpacity onPress={onBack} style={styles.backTouchable}>
-          <Text style={styles.backText}>Trở về</Text>
+          <Text style={styles.backText}>{t('common.goBack')}</Text>
         </TouchableOpacity>
       </View>
     </View>

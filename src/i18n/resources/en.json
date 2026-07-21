@@ -1,0 +1,53 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "agree": "OK",
+    "goBack": "Back"
+  },
+  "menu": {
+    "scanQr": "Scan QR code",
+    "logout": "Log out",
+    "language": "Language"
+  },
+  "logout": {
+    "confirmTitle": "Confirm log out",
+    "confirmMessage": "Are you sure you want to log out?"
+  },
+  "alert": {
+    "invalidUrlTitle": "Warning",
+    "invalidUrlMessage": "Invalid address"
+  },
+  "header": {
+    "scanQr": "Scan QR code"
+  },
+  "offline": {
+    "title": "No network connection",
+    "subtitle": "Please check your connection and try again"
+  },
+  "welcome": {
+    "title": "Welcome to AILearning",
+    "body": "To get started, connect to your learning system by following the steps below.",
+    "guideTitle": "How to connect",
+    "step1": "1. Tap the QR scan icon above.",
+    "step2": "2. Scan the QR code from your ELearning system.",
+    "step3": "3. The app will connect to the matching system and open the sign-in screen."
+  },
+  "scanner": {
+    "needCamera": "Camera permission is required to scan QR codes.",
+    "allowCamera": "Allow camera",
+    "noCamera": "No camera found.",
+    "hint": "Point the camera at the QR code to capture the URL"
+  },
+  "content": {
+    "loadError": "Could not load the page. The server may be under maintenance; please try again or contact your administrator.",
+    "retry": "Try again"
+  },
+  "modal": {
+    "close": "Close"
+  },
+  "language": {
+    "title": "Language",
+    "vietnamese": "Tiếng Việt",
+    "english": "English"
+  }
+}

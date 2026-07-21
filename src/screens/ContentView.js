@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import { withTranslation } from 'react-i18next';
 import { WebView } from 'react-native-webview';
 import { URL } from 'react-native-url-polyfill';
 import { saveData } from '../components/AsyncStorage';
@@ -9,27 +10,38 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
+  Text,
+  TouchableOpacity,
 } from 'react-native';
+import { setAppLanguage } from '../i18n';
 
-export default class ContentView extends Component {
+class ContentView extends Component {
     constructor(props) {
         super(props);
         this.state = {
             visible: true,
-            webview:'',
+            webview: '',
+            loadFailed: false,
         };
     }
     componentDidMount() {
-        BackHandler.addEventListener('hardwareBackPress',() => {
-            if (this.props.webViewRef.current) {
-                this.props.webViewRef.current.goBack();
-                return true;
-            }
-            return false;
-            }
+        this._backHandler = BackHandler.addEventListener(
+            'hardwareBackPress',
+            () => {
+                if (this.props.webViewRef.current) {
+                    this.props.webViewRef.current.goBack();
+                    return true;
+                }
+                return false;
+            },
         );
     }
-    render() { 
+    componentWillUnmount() {
+        this._backHandler?.remove();
+    }
+    render() {
+        const { t, i18n } = this.props;
+        const currentLanguage = i18n.language;
         const INJECTED_JAVASCRIPT = `
             document.cookie = 'appuserid=${this.props.oneSignalId}';
             setTimeout(() => {
@@ -47,7 +59,9 @@ export default class ContentView extends Component {
             } catch (error) {
                 data = event.nativeEvent.data
             }
-            this.props.setSession(data.session);
+            if (data.session && data.session !== this.props.sessKey) {
+                this.props.setSession(data.session);
+            }
             // Lưu thông tin đăng nhập của saas
             if(data.saas_userdata) {
                 saveData('saas_userdata',data.saas_userdata)
@@ -61,6 +75,12 @@ export default class ContentView extends Component {
             if(data.url) {
                 this.setState({webview: data.url})
             }
+            if (data.syncUrl && data.syncUrl !== this.props.url) {
+                this.props.setUrl(data.syncUrl);
+            }
+            if (data.synclang && data.synclang !== currentLanguage) {
+                setAppLanguage(data.synclang);
+            }
         }
         const getBody = () => {
             let param = 'fromapp=1';
@@ -73,15 +93,30 @@ export default class ContentView extends Component {
             } 
             return param;
         }
+        const loadUrl = this.state.webview
+            ? this.state.webview
+            : this.props.url;
+        const usePost =
+            typeof loadUrl === 'string' &&
+            (loadUrl.includes('/login/index.php') ||
+                loadUrl.includes('/auth/saas/index.php') ||
+                loadUrl.includes('/login/logout.php'));
+        const url = new URL(loadUrl);
+        if (!url.searchParams.get('lang')) {
+            url.searchParams.set('lang', currentLanguage);
+        }
+        const source = {
+            uri: url.toString(),
+            method: usePost ? 'POST' : 'GET',
+        };
+        if (usePost) {
+            source.body = getBody();
+        }
         return (
             <View style={styles.container}>
                 <WebView
                     ref={this.props.webViewRef}
-                    source={{
-                        uri: this.state.webview ? this.state.webview : this.props.url,
-                        body: getBody(),
-                        method: 'POST',
-                    }}
+                    source={source}
                     onNavigationStateChange={navState => {
                         this.props.setCurrentUrl(navState.url)
                     }}
@@ -124,11 +159,31 @@ export default class ContentView extends Component {
                     }}
                     onMessage={(event) => listenFromWeb(event)}
                     javaScriptEnabled={true}
+                    onError={() => this.setState({loadFailed:true})}
+                    onHttpError={(e) => {
+                        const status = e.nativeEvent?.statusCode;
+                        if (status >= 400) {
+                            this.setState({ loadFailed: true });
+                        }
+                    }}
                 />
                 {this.state.visible === true && <ActivityIndicator
                     style={styles.loading}
                     size="large"
                 />}
+                {this.state.loadFailed && (
+                    <View style={styles.errorOverlay}>
+                        <Text>{t('content.loadError')}</Text>
+                        <TouchableOpacity
+                            onPress={() => {
+                                this.setState({ loadFailed: false, visible: true });
+                                this.props.webViewRef.current?.reload();
+                            }}
+                        >
+                            <Text>{t('content.retry')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         )
     };
@@ -147,5 +202,18 @@ const styles = StyleSheet.create({
         bottom: 0,
         alignItems: 'center',
         justifyContent: 'center'
+    },
+    errorOverlay: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
     }
 });
+
+export default withTranslation()(ContentView);

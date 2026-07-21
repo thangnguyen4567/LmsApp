@@ -1,0 +1,53 @@
+{
+  "common": {
+    "cancel": "Hủy",
+    "agree": "Đồng ý",
+    "goBack": "Trở về"
+  },
+  "menu": {
+    "scanQr": "Quét mã QR",
+    "logout": "Đăng xuất",
+    "language": "Ngôn ngữ"
+  },
+  "logout": {
+    "confirmTitle": "Xác nhận đăng xuất",
+    "confirmMessage": "Bạn có chắc muốn đăng xuất?"
+  },
+  "alert": {
+    "invalidUrlTitle": "Cảnh báo",
+    "invalidUrlMessage": "Địa chỉ không hợp lệ"
+  },
+  "header": {
+    "scanQr": "Quét mã QR"
+  },
+  "offline": {
+    "title": "Không có kết nối mạng",
+    "subtitle": "Vui lòng kiểm tra kết nối và thử lại"
+  },
+  "welcome": {
+    "title": "Chào mừng đến với AILearning",
+    "body": "Để bắt đầu, vui lòng kết nối đến hệ thống học tập của bạn bằng cách làm theo hướng dẫn bên dưới.",
+    "guideTitle": "Hướng dẫn",
+    "step1": "1. Nhấn vào biểu tượng quét mã QR phía trên.",
+    "step2": "2. Quét mã QR từ hệ thống ELearning bạn đang sử dụng.",
+    "step3": "3. Ứng dụng sẽ kết nối đến hệ thống tương ứng và chuyển đến màn hình đăng nhập."
+  },
+  "scanner": {
+    "needCamera": "Cần quyền camera để quét mã QR.",
+    "allowCamera": "Cho phép camera",
+    "noCamera": "Không tìm thấy camera.",
+    "hint": "Đưa camera mã QR để lấy URL"
+  },
+  "content": {
+    "loadError": "Không tải được trang. Máy chủ có thể đang bảo trì, vui lòng thử lại hoặc liên hệ admin.",
+    "retry": "Thử lại"
+  },
+  "modal": {
+    "close": "Đóng"
+  },
+  "language": {
+    "title": "Ngôn ngữ",
+    "vietnamese": "Tiếng Việt",
+    "english": "English"
+  }
+}

@@ -1,43 +1,86 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Platform,
+  TouchableOpacity,
+  Image,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome5';
 import { colors } from '../constants';
+import { setAppLanguage } from '../i18n';
+import ActionGridModal from '../components/ActionGridModal';
 
 /**
  * Màn mặc định khi chưa có URL LMS (chưa quét QR / chưa lưu project).
  */
 export default function WelcomePlaceholder(props) {
+  const [showLanguagePicker, setShowLanguagePicker] = useState(false);
+  const { t, i18n } = useTranslation();
+  const setLanguage = (lang) => {
+    if (lang !== i18n.language) {
+      setAppLanguage(lang);
+    }
+    setShowLanguagePicker(false);
+  };
+  const viIcon = require('../assets/vi.png');
+  const enIcon = require('../assets/en.png');
+  const langIcon = i18n.language === 'vi' ? viIcon : enIcon;
+  const langMenu = [
+    {
+      icon: viIcon,
+      title: t('language.vietnamese'),
+      onPress: () => setLanguage('vi'),
+      isImage: true,
+    },
+    {
+      icon: enIcon,
+      title: t('language.english'),
+      onPress: () => setLanguage('en'),
+      isImage: true,
+    },
+  ];
   return (
     <ScrollView
       contentContainerStyle={styles.scrollContent}
       style={styles.scroll}
       keyboardShouldPersistTaps="handled">
-      <TouchableOpacity style={styles.iconWrap} onPress={() => props.setScanQRCode(true)}>
-        <Icon
-          name="qrcode"
-          size={40}
-          color={colors.systemcolor}
-        />
+      <TouchableOpacity
+        style={styles.langChip}
+        onPress={() => setShowLanguagePicker(true)}
+        accessibilityRole="button"
+        accessibilityLabel={t('menu.language')}
+      >
+        <Image source={langIcon} style={styles.langChipImage} />
       </TouchableOpacity>
+      <View style={styles.contentWrapper}>
+        <TouchableOpacity style={styles.iconWrap} onPress={() => props.setScanQRCode(true)}>
+          <Icon
+            name="qrcode"
+            size={40}
+            color={colors.systemcolor}
+          />
+        </TouchableOpacity>
 
-      <Text style={styles.title}>Chào mừng đến với AILearning</Text>
+        <Text style={styles.title}>{t('welcome.title')}</Text>
 
-      <Text style={styles.body}>
-        Để mở nội dung học tập, vui lòng sử dụng chức năng quét
-        mã QR trên thanh header hoặc biểu tượng QR phía trên.
-      </Text>
+        <Text style={styles.body}>{t('welcome.body')}</Text>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Hướng dẫn</Text>
-        <Text style={styles.cardBody}>
-          Nhấn vào biểu tượng quét mã QR trên header hoặc biểu tượng QR phía trên → Quét mã QR của trang LMS →
-          Ứng dụng sẽ tải và hiển thị nội dung học tập cho bạn.
-        </Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{t('welcome.guideTitle')}</Text>
+          <Text style={styles.cardBody}>{t('welcome.step1')}</Text>
+          <Text style={styles.cardBody}>{t('welcome.step2')}</Text>
+          <Text style={styles.cardBody}>{t('welcome.step3')}</Text>
+        </View>
       </View>
-
-      <Text style={styles.footer}>
-        Trang này sẽ được thay thế sau khi bạn quét mã QR thành công.
-      </Text>
+      <ActionGridModal
+        visible={showLanguagePicker}
+        onRequestClose={() => setShowLanguagePicker(false)}
+        actions={langMenu}
+      />
     </ScrollView>
   );
 }
@@ -49,9 +92,25 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    alignItems: 'center',
+  },
+  contentWrapper: {
+    flex: 1,
+    alignItems: 'center',
     paddingHorizontal: 24,
     paddingVertical: 32,
-    alignItems: 'center',
+  },
+  langChip: {
+    alignSelf: 'flex-end',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    marginBottom: 8,
+  },
+  langChipImage: {
+    width: 30,
+    height: 30,
   },
   iconWrap: {
     width: 88,
@@ -89,6 +148,8 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
+    maxWidth: Platform.isPad ? 520 : undefined,
+    alignSelf: Platform.isPad ? 'center' : undefined,
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
@@ -116,7 +177,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     lineHeight: 22,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   footer: {
     fontSize: 13,
