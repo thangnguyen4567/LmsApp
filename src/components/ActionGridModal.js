@@ -10,11 +10,10 @@ import {
 	Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome5';
-import { colors } from '../constants';
+import { colors, fontSizes, spacing, radius, shadow } from '../constants';
 
 const ICON_TILE = 50;
 const MAX_PANEL_WIDTH = 320;
-const BACKDROP_OPACITY = 0.58;
 
 const ABSOLUTE_FILL = {
     position: 'absolute',
@@ -115,7 +114,7 @@ const styles = StyleSheet.create({
     },
     backdrop: {
         ...ABSOLUTE_FILL,
-        backgroundColor: `rgba(0, 0, 0, ${BACKDROP_OPACITY})`,
+        backgroundColor: colors.overlay, // rgba(0,0,0,0.58)
     },
     centerLayer: {
         ...ABSOLUTE_FILL,
@@ -123,17 +122,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     panel: {
-        borderRadius: 16,
-        paddingVertical: 20,
-        paddingHorizontal: 12,
-        backgroundColor: 'rgba(255, 255, 255, 0.92)',
+        borderRadius: radius.lg, // 16
+        paddingVertical: spacing.lg, // 20
+        paddingHorizontal: spacing.md, // 12
+        backgroundColor: colors.surfaceGlass, // rgba(255,255,255,0.92)
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(255, 255, 255, 0.75)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.18,
-        shadowRadius: 14,
-        elevation: 10,
+        borderColor: colors.borderGlass, // rgba(255,255,255,0.75)
+        ...shadow.lg, // iOS {h:4, op:.18, r:14} / Android elevation 10
     },
     grid: {
         flexDirection: 'row',
@@ -148,26 +143,22 @@ const styles = StyleSheet.create({
     iconTile: {
         width: ICON_TILE,
         height: ICON_TILE,
-        borderRadius: 14,
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderRadius: 14, // lệch thang radius → giữ literal
+        backgroundColor: colors.surfaceGlassStrong, // rgba(255,255,255,0.95)
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: spacing.sm, // 8
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(0, 0, 0, 0.06)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-        elevation: 2,
+        borderColor: colors.border, // rgba(0,0,0,0.06)
+        ...shadow.sm, // iOS {h:1, op:.08, r:3} / Android elevation 2
     },
     iconTileImage: {
         width: 30,
         height: 30,
     },
     cellLabel: {
-        fontSize: 12,
-        color: '#222',
+        fontSize: fontSizes.h6, // 12
+        color: colors.neutral800, // #222
         textAlign: 'center',
         lineHeight: 16,
     },

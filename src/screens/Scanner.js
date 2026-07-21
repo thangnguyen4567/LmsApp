@@ -7,7 +7,7 @@ import {
   useCodeScanner,
   useCameraPermission,
 } from 'react-native-vision-camera';
-import {colors, fontSizes} from '../constants';
+import {colors, fontSizes, spacing, radius, typography} from '../constants';
 
 export default function Scanner({onScanner, onBack, onPress}) {
   const {t} = useTranslation();
@@ -103,63 +103,63 @@ export default function Scanner({onScanner, onBack, onPress}) {
 const styles = StyleSheet.create({
   panel: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface, // #fff
     overflow: 'hidden',
   },
   hintRow: {
-    paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingHorizontal: spacing.lg, // 20
+    paddingTop: 50, // lệch thang → giữ literal
     paddingBottom: 0,
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
   hintText: {
     fontSize: fontSizes.text,
-    color: '#777',
+    color: colors.neutral500, // #777
     textAlign: 'center',
     lineHeight: 20,
   },
   cameraMiddle: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    backgroundColor: '#fff',
+    paddingHorizontal: spacing.lg, // 20
+    backgroundColor: colors.surface,
   },
   cameraFrame: {
     width: '100%',
     maxWidth: 360,
     alignSelf: 'center',
     aspectRatio: 3 / 4,
-    borderRadius: 8,
+    borderRadius: radius.sm, // 8
     overflow: 'hidden',
-    backgroundColor: '#000',
+    backgroundColor: colors.black, // #000
   },
   footer: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 28,
+    paddingHorizontal: spacing.xl, // 24
+    paddingTop: spacing.base, // 16
+    paddingBottom: 28, // lệch thang → giữ literal
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
   backTouchable: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: spacing.md, // 12
+    paddingHorizontal: spacing.lg, // 20
   },
   backText: {
     fontSize: fontSizes.text,
     color: colors.systemcolor,
-    fontWeight: '500',
+    fontWeight: typography.fontWeights.medium, // '500'
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: spacing.xl, // 24
   },
   messageText: {
     fontSize: fontSizes.text,
-    padding: 16,
-    color: '#555',
+    padding: spacing.base, // 16
+    color: colors.textMuted, // #555
     textAlign: 'center',
   },
   buttonText: {
@@ -167,6 +167,6 @@ const styles = StyleSheet.create({
     color: colors.systemcolor,
   },
   buttonTouchable: {
-    padding: 16,
+    padding: spacing.base, // 16
   },
 });

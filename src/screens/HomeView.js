@@ -329,13 +329,13 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'white',
+        backgroundColor: colors.surface,
     },
     container : {
         flex:1,
-        backgroundColor: 'white',
-        color:'black',
-    },  
+        backgroundColor: colors.surface,
+        color: colors.black,
+    },
     header : {
         flex:0.15,
         padding: 10,

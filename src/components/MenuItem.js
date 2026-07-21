@@ -1,6 +1,6 @@
-import React,{Component} from 'react';
+import React from 'react';
 import Icon from 'react-native-vector-icons/FontAwesome5'
-import { 
+import {
     FlatList,
     TouchableOpacity,
     View,
@@ -9,6 +9,7 @@ import {
     Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, spacing } from '../constants';
 
 const TOOLBAR = 40;
 
@@ -19,7 +20,7 @@ export default function MenuItem({ dataMenu }) {
         <TouchableOpacity onPress={item.onPress}>
         <View style={style.view}>
             <Icon name={item.icon} style={style.icon} size={18} />
-            <Text style={{ color: 'black' }}>{item.title}</Text>
+            <Text style={{ color: colors.black }}>{item.title}</Text>
         </View>
         </TouchableOpacity>
     );
@@ -33,16 +34,16 @@ export default function MenuItem({ dataMenu }) {
 }
 const style = StyleSheet.create({
     view: {
-        padding: 16, 
+        padding: spacing.base, // 16
         flexDirection: 'row',
         alignItems: 'center',
         borderBottomWidth:0.5,
-        borderBottomColor:'grey'
+        borderBottomColor:'grey', // chưa có token xám tương ứng → giữ literal
     },
     icon: {
-        padding:5,
-        color:'black',
-        marginRight:10
+        padding:5, // lệch thang → giữ literal
+        color: colors.black,
+        marginRight:10, // lệch thang → giữ literal
     },
     menu: {
         position: 'absolute',
@@ -50,6 +51,6 @@ const style = StyleSheet.create({
         right: 0,
         bottom: 0,
         zIndex: 999,
-        backgroundColor: 'white',
+        backgroundColor: colors.surface, // #fff
     },
 })

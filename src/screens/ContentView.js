@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { setAppLanguage } from '../i18n';
+import { colors, spacing, commonStyles } from '../constants';
 
 class ContentView extends Component {
     constructor(props) {
@@ -168,11 +169,11 @@ class ContentView extends Component {
                     }}
                 />
                 {this.state.visible === true && <ActivityIndicator
-                    style={styles.loading}
+                    style={commonStyles.overlayCenter}
                     size="large"
                 />}
                 {this.state.loadFailed && (
-                    <View style={styles.errorOverlay}>
+                    <View style={[commonStyles.overlayCenter, styles.errorOverlay]}>
                         <Text>{t('content.loadError')}</Text>
                         <TouchableOpacity
                             onPress={() => {
@@ -194,25 +195,10 @@ const styles = StyleSheet.create({
         flex:10,
         width: '100%'
     },
-    loading: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
+    // Dùng kèm commonStyles.overlayCenter (phủ kín + căn giữa); ở đây chỉ giữ phần đặc thù.
     errorOverlay: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 24,
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        paddingHorizontal: spacing.xl, // 24
+        backgroundColor: colors.surfaceGlassStrong, // rgba(255,255,255,0.95)
     }
 });
 

@@ -5,15 +5,16 @@ import {
   Text,
   Image
 } from 'react-native';
+import { colors, spacing, typography, commonStyles } from '../constants';
 
 class OfflineView extends Component {
     render() {
         const { t } = this.props;
         return (
-            <View style={{flex:1,backgroundColor:'white',justifyContent:'center',alignItems:'center'}}>
-                <Image style={{width:150,height:100,marginBottom:20}} source={require('../assets/nointernet.jpg')} />
-                <Text style={{fontWeight:'bold',color:'black'}}>{t('offline.title')}</Text>
-                <Text style={{color:'black'}}>{t('offline.subtitle')}</Text>
+            <View style={[commonStyles.center, {backgroundColor: colors.surface}]}>
+                <Image style={{width:150,height:100,marginBottom:spacing.lg}} source={require('../assets/nointernet.jpg')} />
+                <Text style={{fontWeight:typography.fontWeights.bold,color:colors.black}}>{t('offline.title')}</Text>
+                <Text style={{color:colors.black}}>{t('offline.subtitle')}</Text>
             </View>
         )
     }
