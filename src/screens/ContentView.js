@@ -141,7 +141,8 @@ class ContentView extends Component {
                                 reqNorm.startsWith('amisapp.misa.vn/') ||
                                 reqNorm.startsWith('misajsc.amis.vn/') ||
                                 reqNorm.startsWith('testmisajsc.amis.vn/') ||
-                                reqNorm.startsWith('testamisapp.misa.vn/')
+                                reqNorm.startsWith('testamisapp.misa.vn/') ||
+                                reqNorm.startsWith('lmsadmin.vnresource.vn/')
                             );
                             if (isWhitelisted) {
                                 return true; // Cho phép tải trang mới
