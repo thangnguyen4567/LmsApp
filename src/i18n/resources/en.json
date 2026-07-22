@@ -5,7 +5,7 @@
     "goBack": "Back"
   },
   "menu": {
-    "scanQr": "Scan QR code",
+    "scanQr": "Scan QR code attendance",
     "logout": "Log out",
     "language": "Language"
   },
@@ -41,6 +41,13 @@
   "content": {
     "loadError": "Could not load the page. The server may be under maintenance; please try again or contact your administrator.",
     "retry": "Try again"
+  },
+  "navbar": {
+    "dashboard": "Dashboard",
+    "course": "Courses",
+    "exam": "Exam",
+    "library": "Library",
+    "forum": "Forum"
   },
   "modal": {
     "close": "Close"

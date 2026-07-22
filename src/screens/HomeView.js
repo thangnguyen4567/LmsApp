@@ -19,9 +19,28 @@ import {
 } from 'react-native';
 import Scanner from './Scanner';
 import WelcomePlaceholder from './WelcomePlaceholder';
+import BottomTabBar from '../components/BottomTabBar';
 
 const ONESIGNAL_APP_ID = '5fedb6e7-a3d6-4767-ae98-5d17e30dc778';
 let oneSignalNativeInitialized = false;
+
+// Bottom navbar mặc định (optimistic) — hiện ngay bằng label i18n trước khi web
+// gửi navConfig; sau đó navConfig từ web sẽ override label/url theo từng tenant.
+const TAB_DEFS = [
+    {key: 'dashboard', path: '/my/', match: '/my/', icon: 'home'},
+    {key: 'course', path: '/course/index.php', match: '/course/', icon: 'book'},
+    {key: 'exam', path: '/examonline.php', match: '/examonline.php', icon: 'pen'},
+    {key: 'library', path: '/library.php', match: '/library.php', icon: 'book-reader'},
+    {key: 'forum', path: '/local/forum/view.php', match: '/local/forum/view.php', icon: 'comments'},
+];
+const TAB_ICONS = {
+    dashboard: 'home',
+    course: 'book',
+    exam: 'pen',
+    library: 'book-reader',
+    forum: 'comments',
+};
+const QUIZ_ATTEMPT_PATH = '/mod/quiz/attempt';
 
 class HomeView extends Component {
     constructor(props) {
@@ -37,6 +56,8 @@ class HomeView extends Component {
             username: "",
             password: "",
             currentUrl: "",
+            canGoBack: false, // WebView còn trang để quay lại hay không
+            navConfig: null, // cấu hình bottom navbar do web cấp (đã dịch theo tenant)
             firstMount: false,
             isMenuOpen: false,
             storageReady: false,
@@ -129,19 +150,94 @@ class HomeView extends Component {
         this._syncOneSignalIdToState();
     }
     handleGoBack = () => {
-        if(this.state.currentUrl.indexOf('/my/') === -1) {
-            if(this.webViewRef.current) {
-                this.webViewRef.current.goBack();
-            }
+        const ref = this.webViewRef.current;
+        if (!ref) {
+            return;
+        }
+        if (this.state.canGoBack) {
+            ref.goBack();
+            return;
+        }
+        // WebView không còn trang để lùi (vd trang con là điểm vào đầu tiên) → đưa về
+        // Dashboard cho khỏi kẹt, thay vì bấm nút mà không có phản hồi.
+        const dashboard = this.buildTabItems().find(it => it.key === 'dashboard');
+        if (dashboard && dashboard.url) {
+            this.handleTabPress(dashboard.url);
+        }
+    };
+    // Nhận cấu hình navbar từ web (label đã dịch theo tenant) + cache lại
+    setNavConfig = (navConfig) => {
+        if (!navConfig || !Array.isArray(navConfig.items)) {
+            return;
+        }
+        this.setState({navConfig});
+        saveData('navConfig', JSON.stringify(navConfig));
+    };
+    _safeOrigin = (u) => {
+        try {
+            return new URL(u).origin;
+        } catch (_e) {
+            return null;
+        }
+    };
+    // Danh sách tab hiển thị: ưu tiên navConfig từ web (label đã dịch), nếu chưa có
+    // thì dùng label i18n mặc định (optimistic) — cùng key nên khi web về không giật.
+    buildTabItems = () => {
+        const {t} = this.props;
+        const origin = this._safeOrigin(this.state.currentUrl || this.state.url);
+        const web = this.state.navConfig && this.state.navConfig.items;
+        // Chỉ dùng navConfig từ web nếu URL của nó CÙNG origin với site đang mở. Tránh
+        // trường hợp: đăng xuất rồi vào site khác nhưng navConfig cache của site cũ vẫn
+        // còn → bấm tab bị đẩy sang link cũ (ngoài whitelist → mở trình duyệt ngoài).
+        const webUsable =
+            web &&
+            web.length &&
+            origin &&
+            web.every(it => this._safeOrigin(it.url) === origin);
+        if (webUsable) {
+            return web.map(it => ({
+                key: it.key,
+                label: it.label,
+                url: it.url,
+                match: it.match,
+                icon: TAB_ICONS[it.key] || 'circle',
+            }));
+        }
+        return TAB_DEFS.map(d => ({
+            key: d.key,
+            label: t('navbar.' + d.key),
+            url: origin ? origin + d.path : null,
+            match: d.match,
+            icon: d.icon,
+        }));
+    };
+    handleTabPress = (targetUrl) => {
+        if (!targetUrl) {
+            return;
+        }
+        const ref = this.webViewRef.current;
+        if (ref && ref.injectJavaScript) {
+            ref.injectJavaScript(`
+                document.getElementsByTagName('body')[0].classList.add('loading');window.location.href=${JSON.stringify(targetUrl)};true;
+            `);
         }
     };
     async componentDidMount() {
-        const [storedUrl, username, password, saas_userdata] = await Promise.all([
+        const [storedUrl, username, password, saas_userdata, navConfigRaw] = await Promise.all([
             getData('url'),
             getData('username'),
             getData('password'),
             getData('saas_userdata'),
+            getData('navConfig'),
         ]);
+        let cachedNavConfig = null;
+        if (navConfigRaw) {
+            try {
+                cachedNavConfig = JSON.parse(navConfigRaw);
+            } catch (_e) {
+                cachedNavConfig = null;
+            }
+        }
         const resolvedUrl = this.props.redirectUrl
             ? this.props.redirectUrl
             : storedUrl
@@ -152,6 +248,7 @@ class HomeView extends Component {
             username: username ?? '',
             password: password ?? '',
             saas_userdata: saas_userdata ?? '',
+            navConfig: cachedNavConfig,
             firstMount: true,
             storageReady: true,
         });
@@ -209,10 +306,12 @@ class HomeView extends Component {
                             username: '',
                             password: '',
                             saas_userdata: '',
+                            navConfig: null,
                         });
                         deleteData('username');
                         deleteData('password');
                         deleteData('saas_userdata');
+                        deleteData('navConfig');
                     }},
                 ]
             )
@@ -222,7 +321,8 @@ class HomeView extends Component {
         const hasWebUrl = webUrl.length > 0;
         let leftIconName = null;
         if (this.state.session) {
-            if (!this.state.scanQRCode) {
+            // Hiện nút back ở mọi trang, TRỪ trang gốc /my/ (dashboard) thì ẩn.
+            if (!this.state.scanQRCode && this.state.currentUrl.indexOf('/my/') === -1) {
                 leftIconName = 'angle-left';
             }
         } else {
@@ -230,6 +330,19 @@ class HomeView extends Component {
                 leftIconName = 'qrcode';
             }
         }
+        // Suy ra "đã đăng nhập" từ dữ liệu đã cache (MMKV) — có ngay khi storageReady,
+        // KHÔNG chờ session postMessage từ web (vốn chỉ về sau khi trang load xong).
+        const isLoggedIn =
+            Boolean(this.state.session) ||
+            Boolean(this.state.saas_userdata) ||
+            (Boolean(this.state.username) && Boolean(this.state.password));
+        const showTabBar =
+            !this.state.scanQRCode &&
+            this.state.storageReady &&
+            hasWebUrl &&
+            isLoggedIn &&
+            !this.state.keyBoard &&
+            this.state.currentUrl.indexOf(QUIZ_ATTEMPT_PATH) === -1;
         return (
             <View style={styles.container}>
                 {/* header */}
@@ -284,6 +397,8 @@ class HomeView extends Component {
                             saas_userdata={this.state.saas_userdata}
                             webViewRef={this.webViewRef}
                             setCurrentUrl={(data) => this.setState({currentUrl:data})}
+                            setCanGoBack={(data) => this.setState({canGoBack:data})}
+                            setNavConfig={this.setNavConfig}
                             sessKey={this.state.session}
                             setUrl={(data) => this.setState({url:data})}
                         />
@@ -317,6 +432,13 @@ class HomeView extends Component {
                                 ]);
                             }
                         }}
+                    />
+                )}
+                {showTabBar && (
+                    <BottomTabBar
+                        items={this.buildTabItems()}
+                        currentUrl={this.state.currentUrl}
+                        onPress={this.handleTabPress}
                     />
                 )}
             </View>

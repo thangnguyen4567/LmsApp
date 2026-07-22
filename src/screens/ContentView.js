@@ -45,12 +45,36 @@ class ContentView extends Component {
         const currentLanguage = i18n.language;
         const INJECTED_JAVASCRIPT = `
             document.cookie = 'appuserid=${this.props.oneSignalId}';
+            (function(){
+                if (!document.getElementById('app-hide-webnav')) {
+                    var s = document.createElement('style');
+                    s.id = 'app-hide-webnav';
+                    s.appendChild(document.createTextNode('.navbar-footer-applms{display:none !important;} body #page.container-fluid{margin-bottom:0 !important;} body#page-course-view-topcoll #page.container-fluid{margin-bottom:0 !important;}'));
+                    (document.head || document.documentElement).appendChild(s);
+                }
+            })();
             setTimeout(() => {
                 const targetElements = document.querySelectorAll('[target]');
                 targetElements.forEach(element => {
                     element.removeAttribute('target');
                 });
             }, 2000)
+            true;
+        `;
+        // Ẩn bottom navbar do web vẽ (.navbar-footer-applms) NGAY trước khi trang render,
+        // vì app này đã có bottom tab bar native. App MỚI chạy đoạn này → không trùng 2
+        // navbar; app CŨ không có đoạn này → footer web vẫn hiện (tương thích ngược).
+        const INJECTED_BEFORE_CONTENT = `
+            (function(){
+                var css = '.navbar-footer-applms{display:none !important;}'
+                    + 'body #page.container-fluid{margin-bottom:0 !important;}'
+                    + 'body#page-course-view-topcoll #page.container-fluid{margin-bottom:0 !important;}';
+                var style = document.createElement('style');
+                style.setAttribute('data-app-hide-webnav','1');
+                style.appendChild(document.createTextNode(css));
+                (document.head || document.documentElement).appendChild(style);
+            })();
+            true;
         `;
         // Xư lý các thông tin được gửi từ web
         const listenFromWeb = async (event) => {
@@ -82,6 +106,10 @@ class ContentView extends Component {
             if (data.synclang && data.synclang !== currentLanguage) {
                 setAppLanguage(data.synclang);
             }
+            // Cấu hình bottom navbar do web (mỗi tenant) cấp — label đã dịch sẵn
+            if (data.navConfig) {
+                this.props.setNavConfig?.(data.navConfig);
+            }
         }
         const getBody = () => {
             let param = 'fromapp=1';
@@ -102,12 +130,20 @@ class ContentView extends Component {
             (loadUrl.includes('/login/index.php') ||
                 loadUrl.includes('/auth/saas/index.php') ||
                 loadUrl.includes('/login/logout.php'));
-        const url = new URL(loadUrl);
-        if (!url.searchParams.get('lang')) {
-            url.searchParams.set('lang', currentLanguage);
+        // Memo source.uri theo loadUrl: chỉ dựng lại URI khi loadUrl đổi (đổi project /
+        // login / web yêu cầu điều hướng). Nhờ vậy khi ĐỔI NGÔN NGỮ trên web (synclang
+        // làm i18n.language đổi → render lại) thì source.uri KHÔNG đổi ⇒ WebView không tự
+        // reload thêm — web đã tự reload theo ?lang rồi. Tránh việc reload 2 lần.
+        if (loadUrl !== this._sourceLoadUrl) {
+            this._sourceLoadUrl = loadUrl;
+            const nextUrl = new URL(loadUrl);
+            if (!nextUrl.searchParams.get('lang')) {
+                nextUrl.searchParams.set('lang', currentLanguage);
+            }
+            this._sourceUri = nextUrl.toString();
         }
         const source = {
-            uri: url.toString(),
+            uri: this._sourceUri,
             method: usePost ? 'POST' : 'GET',
         };
         if (usePost) {
@@ -120,8 +156,10 @@ class ContentView extends Component {
                     source={source}
                     onNavigationStateChange={navState => {
                         this.props.setCurrentUrl(navState.url)
+                        this.props.setCanGoBack?.(navState.canGoBack)
                     }}
                     injectedJavaScript={INJECTED_JAVASCRIPT}
+                    injectedJavaScriptBeforeContentLoaded={INJECTED_BEFORE_CONTENT}
                     onLoadStart={() => this.setState({visible:true})}
                     setSupportMultipleWindows={false}
                     onShouldStartLoadWithRequest={request => {

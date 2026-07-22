@@ -5,7 +5,7 @@
     "goBack": "Trở về"
   },
   "menu": {
-    "scanQr": "Quét mã QR",
+    "scanQr": "Quét mã điểm danh",
     "logout": "Đăng xuất",
     "language": "Ngôn ngữ"
   },
@@ -41,6 +41,13 @@
   "content": {
     "loadError": "Không tải được trang. Máy chủ có thể đang bảo trì, vui lòng thử lại hoặc liên hệ admin.",
     "retry": "Thử lại"
+  },
+  "navbar": {
+    "dashboard": "Trang chủ",
+    "course": "Lớp học",
+    "exam": "Kì thi",
+    "library": "Thư viện",
+    "forum": "Diễn đàn"
   },
   "modal": {
     "close": "Đóng"
