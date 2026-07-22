@@ -48,10 +48,12 @@ class HomeView extends Component {
     constructor(props) {
         super(props);
         this.webViewRef = React.createRef();
+        this.scannerRef = React.createRef();
         this.state = {
             url: "", // url của web lms
             keyBoard: false, // bàn phím bật hay tắt
             scanQRCode: false, // bật mã QR hay ko
+            scanAtt: false, // true = đang quét mã ĐIỂM DANH (chỉ nhận URL /mod/attendance/)
             webTitle: "", // tiêu dề web
             session:"", // sessiong đăng nhập của web
             oneSignalId: "", // Push subscription id (dùng với include_player_ids trên backend)
@@ -364,7 +366,16 @@ class HomeView extends Component {
     render() {
         const {t} = this.props;
         const dataMenu = [
-            { icon: 'qrcode', title: t('menu.scanQr'), onPress: () => this.setState({scanQRCode:true, isMenuOpen:false})},
+            { icon: 'qrcode', title: t('menu.scanQr'), onPress: () => this.setState({
+                scanQRCode:true,
+                scanAtt:true,
+                isMenuOpen:false,
+                // Chốt URL đang đứng làm nguồn tải cho ContentView. Tránh bug: nếu người
+                // dùng đã điều hướng trong web (navbar/link) rồi mở scanner và bấm Trở về,
+                // ContentView mount lại sẽ tải đúng trang hiện tại thay vì state.url cũ
+                // (vd URL điểm danh lần trước). Quét hợp lệ vẫn ghi đè url sau đó.
+                url: this.state.currentUrl || this.state.url,
+            })},
             { icon: 'sign-out-alt', title: t('menu.logout'), onPress: () => Alert.alert(
                 t('logout.confirmTitle'),
                 t('logout.confirmMessage'),
@@ -429,7 +440,7 @@ class HomeView extends Component {
             <View style={styles.container}>
                 {/* header */}
                 <UIHeader 
-                    title={this.state.scanQRCode ? t('header.scanQr') : this.state.webTitle}
+                    title={this.state.scanQRCode ? (this.state.scanAtt ? t('header.scanAtt') : t('header.scanQr')) : this.state.webTitle}
                     rightIconName={(this.state.session && !this.state.scanQRCode) ? 'ellipsis-v' : undefined}
                     leftIconName={leftIconName ? leftIconName : undefined}
                     onPressRightIcon={() => {
@@ -490,14 +501,37 @@ class HomeView extends Component {
                     )
                 ) : (
                 // Quét mã QR
-                    <Scanner 
+                    <Scanner
+                        ref={this.scannerRef}
+                        isAttendance={this.state.scanAtt}
                         onPress={() => {
                             request(PERMISSIONS.IOS.CAMERA).then(cameraStatus => {});
-                        }} 
+                        }}
                         onBack={() => {
-                            this.setState({scanQRCode:false})
-                        }} 
+                            this.setState({scanQRCode:false, scanAtt:false})
+                        }}
                         onScanner={e => {
+                            // Luồng quét mã ĐIỂM DANH (mở từ menu 3 chấm khi đã đăng nhập):
+                            // chỉ chấp nhận QR là URL hợp lệ VÀ path chứa /mod/attendance/.
+                            if (this.state.scanAtt) {
+                                if (Validate.isUrlValid(e.data) && e.data.indexOf('/mod/attendance/') > -1) {
+                                    this.props.onClearRedirectUrl?.();
+                                    this.setState({url:e.data, scanQRCode:false, scanAtt:false})
+                                } else {
+                                    // Không cho "Trở về": ở lại màn quét để người dùng
+                                    // thử lại. Muốn thoát thì tự bấm nút back của scanner.
+                                    // reset() bật lại việc quét (đã bị chặn sau lần quét trước).
+                                    Alert.alert(t('alert.invalidAttTitle'), t('alert.invalidAttMessage'),[
+                                        {text: t('common.tryAgain'), onPress: () =>
+                                            {
+                                                this.scannerRef.current?.reset()
+                                            }
+                                        },
+                                    ]);
+                                }
+                                return;
+                            }
+                            // Luồng quét QR LINK DỰ ÁN (scanAtt = false) — giữ nguyên như hiện tại.
                             let newurl = new URL(e.data);
                             let searchParams  = new URLSearchParams(newurl.search);
                             if(Validate.isUrlValid(e.data) && this.state.session) {
@@ -509,7 +543,7 @@ class HomeView extends Component {
                                 saveData('url',e.data)
                             } else {
                                 Alert.alert(t('alert.invalidUrlTitle'), t('alert.invalidUrlMessage'),[
-                                    {text: 'Trở về',onPress: () => 
+                                    {text: 'Trở về',onPress: () =>
                                         {
                                             this.setState({scanQRCode:false})
                                         }

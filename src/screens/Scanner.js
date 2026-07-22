@@ -1,4 +1,10 @@
-import React, {useCallback, useEffect, useRef} from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+} from 'react';
 import {useTranslation} from 'react-i18next';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {
@@ -9,11 +15,19 @@ import {
 } from 'react-native-vision-camera';
 import {colors, fontSizes, spacing, radius, typography} from '../constants';
 
-export default function Scanner({onScanner, onBack, onPress}) {
+function Scanner({onScanner, onBack, onPress, isAttendance}, ref) {
   const {t} = useTranslation();
   const device = useCameraDevice('back');
   const {hasPermission, requestPermission} = useCameraPermission();
   const scannedRef = useRef(false);
+
+  // Cho phép cha bật lại việc quét sau khi đã quét 1 lần (vd mã điểm danh sai:
+  // hiện cảnh báo nhưng vẫn ở màn quét để người dùng thử lại).
+  useImperativeHandle(ref, () => ({
+    reset: () => {
+      scannedRef.current = false;
+    },
+  }));
 
   useEffect(() => {
     if (!hasPermission) {
@@ -79,7 +93,9 @@ export default function Scanner({onScanner, onBack, onPress}) {
   return (
     <View style={styles.panel}>
       <View style={styles.hintRow}>
-        <Text style={styles.hintText}>{t('scanner.hint')}</Text>
+        <Text style={styles.hintText}>
+          {isAttendance ? t('scanner.hintAtt') : t('scanner.hint')}
+        </Text>
       </View>
       <View style={styles.cameraMiddle}>
         <View style={styles.cameraFrame}>
@@ -170,3 +186,5 @@ const styles = StyleSheet.create({
     padding: spacing.base, // 16
   },
 });
+
+export default forwardRef(Scanner);

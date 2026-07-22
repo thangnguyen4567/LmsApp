@@ -2,7 +2,8 @@
   "common": {
     "cancel": "Cancel",
     "agree": "OK",
-    "goBack": "Back"
+    "goBack": "Back",
+    "tryAgain": "Try again"
   },
   "menu": {
     "scanQr": "Scan QR code attendance",
@@ -15,10 +16,13 @@
   },
   "alert": {
     "invalidUrlTitle": "Warning",
-    "invalidUrlMessage": "Invalid address"
+    "invalidUrlMessage": "Invalid address",
+    "invalidAttTitle": "Invalid attendance code",
+    "invalidAttMessage": "Please scan a valid attendance QR code."
   },
   "header": {
-    "scanQr": "Scan QR code"
+    "scanQr": "Scan QR code",
+    "scanAtt": "Scan attendance code"
   },
   "offline": {
     "title": "No network connection",
@@ -40,11 +44,16 @@
     "needCamera": "Camera permission is required to scan QR codes.",
     "allowCamera": "Allow camera",
     "noCamera": "No camera found.",
-    "hint": "Point the camera at the QR code to capture the URL"
+    "hint": "Point the camera at the QR code to capture the URL",
+    "hintAtt": "Point the camera at the attendance QR code"
   },
   "content": {
     "loadError": "Could not load the page. The server may be under maintenance; please try again or contact your administrator.",
     "retry": "Try again"
+  },
+  "download": {
+    "failedTitle": "Download failed",
+    "failedMessage": "Something went wrong while downloading the file. Please try again."
   },
   "navbar": {
     "dashboard": "Dashboard",

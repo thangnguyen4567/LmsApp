@@ -12,9 +12,12 @@ import {
   Platform,
   Text,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { setAppLanguage } from '../i18n';
 import { colors, spacing, commonStyles } from '../constants';
+import ReactNativeBlobUtil from 'react-native-blob-util';
+import CookieManager from '@preeternal/react-native-cookie-manager';
 
 class ContentView extends Component {
     constructor(props) {
@@ -23,6 +26,7 @@ class ContentView extends Component {
             visible: true,
             webview: '',
             loadFailed: false,
+            downloading: false, // iOS: đang tải file qua onFileDownload
         };
     }
     componentDidMount() {
@@ -59,6 +63,39 @@ class ContentView extends Component {
                     element.removeAttribute('target');
                 });
             }, 2000)
+            // Pull-to-reload: kéo xuống đủ lực khi đang ở ĐỈNH trang -> báo native
+            // tải lại trang. Dùng listener passive (không preventDefault) nên KHÔNG
+            // ảnh hưởng cuộn/gesture sẵn có của trang. ';' dẫn đầu tránh lỗi ASI với
+            // setTimeout ở trên.
+            ;(function(){
+                if (window.__appPtrInstalled) { return; }
+                window.__appPtrInstalled = true;
+                var startY = 0, startX = 0, tracking = false, fired = false;
+                var THRESHOLD = 280; // px — phải kéo DÀI, dứt khoát mới reload (điều chỉnh được)
+                var atTop = function(){
+                    return (window.pageYOffset || document.documentElement.scrollTop || 0) <= 0;
+                };
+                document.addEventListener('touchstart', function(e){
+                    if (e.touches && e.touches.length === 1 && atTop()) {
+                        startY = e.touches[0].clientY;
+                        startX = e.touches[0].clientX;
+                        tracking = true; fired = false;
+                    } else { tracking = false; }
+                }, {passive: true});
+                document.addEventListener('touchmove', function(e){
+                    if (!tracking || fired || !e.touches || e.touches.length !== 1) { return; }
+                    // Rời khỏi đỉnh (đang cuộn) -> huỷ, tránh reload nhầm khi cuộn.
+                    if (!atTop()) { tracking = false; return; }
+                    var dy = e.touches[0].clientY - startY;
+                    var dx = Math.abs(e.touches[0].clientX - startX);
+                    // Kéo XUỐNG, đủ dài, và chủ yếu theo chiều dọc (không phải vuốt ngang/xiên).
+                    if (dy > THRESHOLD && dy > dx * 2) {
+                        fired = true; tracking = false;
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ ptrReload: true }));
+                    }
+                }, {passive: true});
+                document.addEventListener('touchend', function(){ tracking = false; }, {passive: true});
+            })();
             true;
         `;
         // Ẩn bottom navbar do web vẽ (.navbar-footer-applms) NGAY trước khi trang render,
@@ -83,6 +120,11 @@ class ContentView extends Component {
                 data = JSON.parse(event.nativeEvent.data)
             } catch (error) {
                 data = event.nativeEvent.data
+            }
+            // Pull-to-reload từ web: kéo đủ lực ở đỉnh trang -> tải lại trang hiện tại.
+            if (data && data.ptrReload) {
+                this.props.webViewRef.current?.reload();
+                return;
             }
             if (data.session && data.session !== this.props.sessKey) {
                 this.props.setSession(data.session);
@@ -111,6 +153,68 @@ class ContentView extends Component {
                 this.props.setNavConfig?.(data.navConfig);
             }
         }
+        // iOS: WKWebView không tự tải file về máy như Android. Bắt sự kiện tải (file
+        // có Content-Disposition: attachment — vd Moodle forcedownload=1), tải kèm
+        // cookie session của WebView rồi mở QuickLook (sẵn nút Share / Save to Files).
+        // Android KHÔNG dùng hàm này: onFileDownload là no-op trên Android, hệ thống
+        // đã tự tải qua DownloadManager — vẫn guard Platform cho chắc chắn.
+        const handleFileDownload = async ({ nativeEvent }) => {
+            if (Platform.OS !== 'ios') {
+                return;
+            }
+            const downloadUrl = nativeEvent?.downloadUrl;
+            if (!downloadUrl) {
+                return;
+            }
+            this.setState({ downloading: true });
+            try {
+                // Cookie session của WKWebView cho origin của file (useWebKit = true).
+                // Cần vì session Moodle thường là HttpOnly, không đọc được bằng JS.
+                let cookieHeader = '';
+                try {
+                    const origin = new URL(downloadUrl).origin;
+                    const cookies = await CookieManager.get(origin, true);
+                    cookieHeader = Object.keys(cookies || {})
+                        .map(name => `${name}=${cookies[name].value}`)
+                        .join('; ');
+                } catch (e) {
+                    // Không lấy được cookie (file public) → vẫn thử tải.
+                }
+                // Tên + phần mở rộng file suy từ URL.
+                let filename = 'download';
+                try {
+                    const path = new URL(downloadUrl).pathname;
+                    const last = decodeURIComponent(
+                        path.split('/').filter(Boolean).pop() || '',
+                    );
+                    if (last) {
+                        filename = last;
+                    }
+                } catch (e) {
+                    // giữ mặc định
+                }
+                const dot = filename.lastIndexOf('.');
+                const ext = dot > -1 ? filename.slice(dot + 1) : '';
+                const res = await ReactNativeBlobUtil.config({
+                    fileCache: true,
+                    ...(ext ? { appendExt: ext } : {}),
+                }).fetch(
+                    'GET',
+                    downloadUrl,
+                    cookieHeader ? { Cookie: cookieHeader } : {},
+                );
+                const status = res.info().status;
+                if (!status || status >= 400) {
+                    throw new Error('status ' + status);
+                }
+                // Mở QuickLook — người dùng xem và bấm Share / "Save to Files".
+                ReactNativeBlobUtil.ios.previewDocument(res.path());
+            } catch (e) {
+                Alert.alert(t('download.failedTitle'), t('download.failedMessage'));
+            } finally {
+                this.setState({ downloading: false });
+            }
+        };
         const getBody = () => {
             let param = 'fromapp=1';
             if(this.props.username && this.props.password) {
@@ -198,6 +302,7 @@ class ContentView extends Component {
                         this.setState({visible:false})
                     }}
                     onMessage={(event) => listenFromWeb(event)}
+                    onFileDownload={handleFileDownload}
                     javaScriptEnabled={true}
                     onError={() => this.setState({loadFailed:true})}
                     onHttpError={(e) => {
@@ -207,7 +312,7 @@ class ContentView extends Component {
                         }
                     }}
                 />
-                {this.state.visible === true && <ActivityIndicator
+                {(this.state.visible === true || this.state.downloading === true) && <ActivityIndicator
                     style={commonStyles.overlayCenter}
                     size="large"
                 />}
