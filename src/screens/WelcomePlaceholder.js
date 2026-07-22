@@ -7,9 +7,11 @@ import {
     ScrollView,
     Platform,
     TouchableOpacity,
+    TextInput,
+    Keyboard,
+    ActivityIndicator,
     Image,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome5';
 import {
     colors,
     fontSizes,
@@ -21,19 +23,40 @@ import {
 } from '../constants';
 import { setAppLanguage } from '../i18n';
 import ActionGridModal from '../components/ActionGridModal';
+import InfoModal from '../components/InfoModal';
 
 /**
- * Màn mặc định khi chưa có URL LMS (chưa quét QR / chưa lưu project).
+ * Màn mặc định khi chưa có URL LMS (chưa nhập link / chưa quét QR).
+ * Ưu tiên nhập link; QR là tuỳ chọn phụ.
  */
 export default function WelcomePlaceholder(props) {
     const [showLanguagePicker, setShowLanguagePicker] = useState(false);
+    const [showGuide, setShowGuide] = useState(false);
+    // Điền sẵn đường dẫn người dùng đã nhập trước đó (khi quay lại từ WebView chưa login).
+    const [linkInput, setLinkInput] = useState(() => props.initialUrl || '');
+    const [submitting, setSubmitting] = useState(false);
     const { t, i18n } = useTranslation();
+
     const setLanguage = (lang) => {
         if (lang !== i18n.language) {
             setAppLanguage(lang);
         }
         setShowLanguagePicker(false);
     };
+
+    const handleSubmit = async () => {
+        const val = linkInput.trim();
+        if (!val || submitting) {
+            return;
+        }
+        Keyboard.dismiss();
+        setSubmitting(true);
+        // HomeView lo việc validate định dạng + lưu + mở WebView (và sau này là
+        // gọi API xác thực link). Nếu link không hợp lệ, HomeView tự Alert.
+        await props.onSubmitUrl?.(val);
+        setSubmitting(false);
+    };
+
     const viIcon = require('../assets/vi.png');
     const enIcon = require('../assets/en.png');
     const langIcon = i18n.language === 'vi' ? viIcon : enIcon;
@@ -51,6 +74,16 @@ export default function WelcomePlaceholder(props) {
             isImage: true,
         },
     ];
+
+    const isSubmitDisabled = submitting || linkInput.trim().length === 0;
+
+    const guideLines = [
+        t('welcome.guideStep1'),
+        t('welcome.guideStep2'),
+        t('welcome.guideStep3'),
+        t('welcome.guideNote'),
+    ];
+
     return (
         <ScrollView
             contentContainerStyle={styles.scrollContent}
@@ -64,26 +97,75 @@ export default function WelcomePlaceholder(props) {
             >
                 <Image source={langIcon} style={styles.langChipImage} />
             </TouchableOpacity>
+
             <View style={styles.contentWrapper}>
-                <TouchableOpacity style={styles.iconWrap} onPress={() => props.setScanQRCode(true)}>
-                    <Icon
-                        name="qrcode"
-                        size={40}
-                        color={colors.systemcolor}
-                    />
-                </TouchableOpacity>
+                <Image
+                    source={require('../assets/logo.png')}
+                    style={styles.logo}
+                    resizeMode="contain"
+                    accessibilityIgnoresInvertColors
+                />
 
                 <Text style={styles.title}>{t('welcome.title')}</Text>
 
                 <Text style={styles.body}>{t('welcome.body')}</Text>
 
-                <View style={styles.card}>
-                    <Text style={styles.cardTitle}>{t('welcome.guideTitle')}</Text>
-                    <Text style={styles.cardBody}>{t('welcome.step1')}</Text>
-                    <Text style={styles.cardBody}>{t('welcome.step2')}</Text>
-                    <Text style={styles.cardBody}>{t('welcome.step3')}</Text>
-                </View>
+                <TextInput
+                    style={styles.input}
+                    value={linkInput}
+                    onChangeText={setLinkInput}
+                    placeholder={t('welcome.inputPlaceholder')}
+                    placeholderTextColor={colors.textSubtle}
+                    keyboardType="url"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="off"
+                    returnKeyType="go"
+                    editable={!submitting}
+                    onSubmitEditing={handleSubmit}
+                />
+
+                <TouchableOpacity
+                    style={[styles.primaryButton, isSubmitDisabled && styles.primaryButtonDisabled]}
+                    onPress={handleSubmit}
+                    disabled={isSubmitDisabled}
+                    accessibilityRole="button"
+                    accessibilityState={{disabled: isSubmitDisabled}}
+                    accessibilityLabel={t('welcome.connect')}
+                >
+                    {submitting ? (
+                        <ActivityIndicator color={colors.white} />
+                    ) : (
+                        <Text style={styles.primaryButtonText}>{t('welcome.connect')}</Text>
+                    )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.haveQrLink}
+                    onPress={() => props.setScanQRCode(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('welcome.haveQr')}
+                >
+                    <Text style={styles.haveQrText}>{t('welcome.haveQr')}</Text>
+                </TouchableOpacity>
             </View>
+
+            <View style={styles.footer}>
+                <TouchableOpacity
+                    onPress={() => setShowGuide(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('welcome.guideTitle')}
+                >
+                    <Text style={styles.guideLink}>{t('welcome.guideTitle')}</Text>
+                </TouchableOpacity>
+            </View>
+
+            <InfoModal
+                visible={showGuide}
+                onRequestClose={() => setShowGuide(false)}
+                title={t('welcome.guideTitle')}
+                lines={guideLines}
+            />
             <ActionGridModal
                 visible={showLanguagePicker}
                 onRequestClose={() => setShowLanguagePicker(false)}
@@ -100,9 +182,13 @@ const styles = StyleSheet.create({
     },
     contentWrapper: {
         flex: 1,
+        width: '100%',
+        maxWidth: Platform.isPad ? 520 : undefined,
         alignItems: 'center',
+        // Bám mép trên (không căn giữa dọc) để bàn phím không che nội dung khi nhập link.
         paddingHorizontal: spacing.xl, // 24
-        paddingVertical: spacing.xxl, // 32
+        paddingTop: spacing.xxl, // 32 — giữ khoảng cách phía trên như cũ
+        paddingBottom: spacing.lg, // 20
     },
     langChip: {
         alignSelf: 'flex-end',
@@ -116,15 +202,10 @@ const styles = StyleSheet.create({
         width: 30,
         height: 30,
     },
-    iconWrap: {
-        width: 88,
-        height: 88,
-        borderRadius: radius.lg, // 16
-        backgroundColor: colors.surface, // #fff
-        alignItems: 'center',
-        justifyContent: 'center',
+    logo: {
+        width: 120,
+        height: 120,
         marginBottom: spacing.xl, // 24
-        ...shadow.md, // khớp đúng bóng cũ: iOS {h:2, op:.08, r:6} / Android elevation 3
     },
     title: {
         ...typography.textPresets.h1, // fontSize 22 + fontWeight '700'
@@ -139,44 +220,55 @@ const styles = StyleSheet.create({
         lineHeight: 22,
         marginBottom: spacing.xl, // 24
     },
-    card: {
+    input: {
         width: '100%',
-        maxWidth: Platform.isPad ? 520 : undefined,
-        alignSelf: Platform.isPad ? 'center' : undefined,
-        backgroundColor: colors.surface, // #fff
+        height: 48,
+        borderWidth: 1,
+        borderColor: colors.border, // rgba(0,0,0,0.06)
         borderRadius: radius.md, // 12
-        padding: spacing.base, // 16
-        marginBottom: spacing.xl, // 24
-        // Bóng nhẹ hơn preset shadow.sm (opacity .06 / radius 4) → giữ literal để không đổi giao diện
-        ...Platform.select({
-            ios: {
-                shadowColor: colors.black,
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.06,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        paddingHorizontal: spacing.base, // 16
+        fontSize: fontSizes.text, // 16
+        color: colors.text, // #1a1a1a
+        backgroundColor: colors.surface, // #fff
+        marginBottom: spacing.md, // 12
     },
-    cardTitle: {
+    primaryButton: {
+        width: '100%',
+        height: 48,
+        borderRadius: radius.md, // 12
+        backgroundColor: colors.systemcolor, // #006400
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...shadow.sm,
+    },
+    primaryButtonDisabled: {
+        opacity: 0.7,
+    },
+    primaryButtonText: {
         fontSize: fontSizes.text, // 16
         fontWeight: typography.fontWeights.semibold, // '600'
-        color: colors.systemcolor,
-        marginBottom: 10, // lệch thang 4pt → giữ literal
-        textAlign: 'center',
+        color: colors.white,
     },
-    cardBody: {
+    haveQrLink: {
+        marginTop: spacing.base, // 16
+        paddingVertical: spacing.sm, // 8
+        paddingHorizontal: spacing.md, // 12
+    },
+    haveQrText: {
         fontSize: fontSizes.h5, // 14
-        color: colors.neutral700, // #333
-        lineHeight: 22,
-        textAlign: 'left',
+        color: colors.systemcolor,
+        fontWeight: typography.fontWeights.medium, // '500'
+        textAlign: 'center',
     },
     footer: {
-        fontSize: 13, // lệch thang chữ → giữ literal
-        color: colors.textSubtle, // #999
+        width: '100%',
+        alignItems: 'center',
+        paddingVertical: spacing.lg, // 20
+    },
+    guideLink: {
+        fontSize: fontSizes.h5, // 14
+        color: colors.textMuted, // #555
+        textDecorationLine: 'underline',
         textAlign: 'center',
-        lineHeight: 20,
     },
 });

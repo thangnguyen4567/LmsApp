@@ -3,7 +3,6 @@ import {withTranslation} from 'react-i18next';
 import ContentView from "./ContentView";
 import Validate from '../components/Validate';
 import UIHeader from '../components/UIHeader';
-import {setAppLanguage} from '../i18n';
 import {colors} from '../constants'
 import {URL,URLSearchParams} from 'react-native-url-polyfill';
 import {OneSignal} from 'react-native-onesignal';
@@ -41,6 +40,9 @@ const TAB_ICONS = {
     forum: 'comments',
 };
 const QUIZ_ATTEMPT_PATH = '/mod/quiz/attempt';
+// Endpoint xác thực link LMS khi người dùng nhập tay. Trả JSON {isvalid, wwwroot}.
+const APPLINK_VERIFY_PATH = '/local/module/vnr/app/applink_verify.php';
+const APPLINK_VERIFY_TIMEOUT_MS = 15000;
 
 class HomeView extends Component {
     constructor(props) {
@@ -62,6 +64,7 @@ class HomeView extends Component {
             isMenuOpen: false,
             storageReady: false,
             saas_userdata: "",
+            welcomeInitialUrl: "",
         };
         this.componentDidMount = this.componentDidMount.bind(this);
         this._onOneSignalNotificationClick = this._onOneSignalNotificationClick.bind(
@@ -276,13 +279,87 @@ class HomeView extends Component {
         } else {
             const {t} = this.props;
             Alert.alert(t('alert.invalidUrlTitle'), t('alert.invalidUrlMessage'),[
-                {text: t('common.goBack'),onPress: () => 
+                {text: t('common.goBack'),onPress: () =>
                     {
                         this.setState({scanQRCode:false})
                     }
                 },
             ]);
         }
+    }
+    // Nhập link thủ công từ màn Welcome: validate định dạng, rồi GỌI ENDPOINT XÁC
+    // THỰC trên chính site người dùng nhập để chắc chắn đây là site LMS hợp lệ.
+    // Endpoint trả về wwwroot (đường dẫn gốc chuẩn, đã gồm sub-path như /lms nếu có)
+    // → ta dựng URL đăng nhập từ wwwroot đó. Mọi lỗi (404/500/timeout/mạng/JSON hỏng/
+    // isvalid=false) đều coi là link KHÔNG hợp lệ.
+    handleSubmitManualUrl = async (rawUrl) => {
+        const {t} = this.props;
+        const input = (rawUrl || '').trim();
+        if (!Validate.isUrlValid(input)) {
+            Alert.alert(t('alert.invalidUrlTitle'), t('alert.invalidUrlMessage'));
+            return false;
+        }
+        // Gắn endpoint xác thực vào link người dùng nhập + truyền 2 tham số endpoint
+        // cần: fromapp=1 và inputlink=<link người dùng nhập>.
+        const base = input.replace(/\/+$/, '');
+        const verifyUrl =
+            base + APPLINK_VERIFY_PATH +
+            '?fromapp=1&inputlink=' + encodeURIComponent(input);
+
+        let wwwroot = null;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), APPLINK_VERIFY_TIMEOUT_MS);
+        try {
+            const res = await fetch(verifyUrl, {
+                method: 'GET',
+                headers: {Accept: 'application/json'},
+                signal: controller.signal,
+            });
+            if (!res.ok) {
+                throw new Error('status ' + res.status);
+            }
+            const data = await res.json();
+            if (!data || data.isvalid !== true || !data.wwwroot) {
+                throw new Error('invalid');
+            }
+            wwwroot = String(data.wwwroot);
+        } catch (e) {
+            Alert.alert(t('alert.invalidUrlTitle'), t('alert.invalidUrlMessage'));
+            return false;
+        } finally {
+            clearTimeout(timer);
+        }
+
+        // wwwroot là gốc chuẩn do server trả (gồm cả sub-path nếu có) → luôn đúng.
+        const loginUrl = wwwroot.replace(/\/+$/, '') + '/login/index.php?applms=true';
+        this.props.onClearRedirectUrl?.();
+        saveData('url', loginUrl);
+        this.setState({url: loginUrl, scanQRCode: false, welcomeInitialUrl: input});
+        return true;
+    }
+    // Quay lại màn Welcome khi đã mở URL nhưng CHƯA đăng nhập (chưa có session từ
+    // web). Xoá URL đang mở để render lại WelcomePlaceholder, đồng thời điền sẵn
+    // (patch) lại đường dẫn người dùng đã nhập/lưu vào ô input để thao tác lại.
+    backToWelcome = () => {
+        const current = this.props.redirectUrl || this.state.url || '';
+        // Ưu tiên đúng chuỗi người dùng đã nhập (lưu ở welcomeInitialUrl khi submit);
+        // nếu chưa có (vd vào bằng QR) thì fallback lấy origin của URL đang mở.
+        let prefill = this.state.welcomeInitialUrl;
+        if (!prefill) {
+            try {
+                prefill = new URL(current).origin;
+            } catch (e) {
+                prefill = current;
+            }
+        }
+        this.props.onClearRedirectUrl?.();
+        this.setState({
+            url: '',
+            welcomeInitialUrl: prefill,
+            webTitle: '',
+            currentUrl: '',
+            canGoBack: false,
+        });
     }
     render() {
         const {t} = this.props;
@@ -325,11 +402,16 @@ class HomeView extends Component {
             if (!this.state.scanQRCode && this.state.currentUrl.indexOf('/my/') === -1) {
                 leftIconName = 'angle-left';
             }
-        } else {
-            if (!this.state.scanQRCode) {
-                leftIconName = 'qrcode';
-            }
+        } else if (!this.state.scanQRCode && hasWebUrl) {
+            // Đã mở URL nhưng CHƯA đăng nhập (chưa có session từ web): hiện nút về màn
+            // Welcome để nhập lại đường dẫn hoặc quét QR — thay cho nút QR trên header
+            // trước đây. Ở màn Welcome (chưa có URL) thì header trống.
+            // Dùng icon 'home' (về màn khởi đầu) thay cho 'angle-left': nút back dễ gây
+            // hiểu nhầm là "quay lại trang trước", nhất là sau khi logout (session bị
+            // clear nhưng url trang logout/login vẫn còn nên vẫn rơi vào nhánh này).
+            leftIconName = 'home';
         }
+        // KHÔNG còn icon QR trên header — nhập link & quét QR đã nằm trong màn Welcome.
         // Suy ra "đã đăng nhập" từ dữ liệu đã cache (MMKV) — có ngay khi storageReady,
         // KHÔNG chờ session postMessage từ web (vốn chỉ về sau khi trang load xong).
         const isLoggedIn =
@@ -357,7 +439,8 @@ class HomeView extends Component {
                         if(this.state.session) {
                             this.handleGoBack()
                         } else {
-                            this.setState({scanQRCode:true})
+                            // Chưa đăng nhập: quay lại màn Welcome để nhập lại / quét QR.
+                            this.backToWelcome()
                             // uncomment this to use dev url
                             // this.setUrlDev()
                         }
@@ -385,6 +468,8 @@ class HomeView extends Component {
                     ) : !hasWebUrl ? (
                         <WelcomePlaceholder
                             setScanQRCode={(data) => this.setState({scanQRCode:data})}
+                            onSubmitUrl={this.handleSubmitManualUrl}
+                            initialUrl={this.state.welcomeInitialUrl}
                         />
                     ) : (
                         <ContentView 
@@ -423,7 +508,7 @@ class HomeView extends Component {
                                 this.setState({url:e.data,scanQRCode:false})
                                 saveData('url',e.data)
                             } else {
-                                Alert.alert('Cảnh báo', 'Địa chỉ không hợp lệ',[
+                                Alert.alert(t('alert.invalidUrlTitle'), t('alert.invalidUrlMessage'),[
                                     {text: 'Trở về',onPress: () => 
                                         {
                                             this.setState({scanQRCode:false})

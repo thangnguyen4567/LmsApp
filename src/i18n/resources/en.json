@@ -26,11 +26,15 @@
   },
   "welcome": {
     "title": "Welcome to AILearning",
-    "body": "To get started, connect to your learning system by following the steps below.",
+    "body": "Enter your learning system URL to get started.",
+    "inputPlaceholder": "https://elearning.yourorg.com",
+    "connect": "Connect",
+    "haveQr": "Have a QR code?",
     "guideTitle": "How to connect",
-    "step1": "1. Tap the QR scan icon above.",
-    "step2": "2. Scan the QR code from your ELearning system.",
-    "step3": "3. The app will connect to the matching system and open the sign-in screen."
+    "guideStep1": "Enter your organization's learning system URL in the field above, including the full http:// or https:// prefix.",
+    "guideStep2": "Tap “Connect” to open your organization's learning system inside the app.",
+    "guideStep3": "If your organization provides a QR code, tap “Have a QR code?” to scan it instead of typing the URL.",
+    "guideNote": "The URL and QR code are provided by your organization or school."
   },
   "scanner": {
     "needCamera": "Camera permission is required to scan QR codes.",

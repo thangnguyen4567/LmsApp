@@ -26,11 +26,15 @@
   },
   "welcome": {
     "title": "Chào mừng đến với AILearning",
-    "body": "Để bắt đầu, vui lòng kết nối đến hệ thống học tập của bạn bằng cách làm theo hướng dẫn bên dưới.",
+    "body": "Nhập đường dẫn hệ thống học tập của bạn để bắt đầu.",
+    "inputPlaceholder": "https://elearning.donvicuaban.vn",
+    "connect": "Kết nối",
+    "haveQr": "Bạn có mã QR?",
     "guideTitle": "Hướng dẫn",
-    "step1": "1. Nhấn vào biểu tượng quét mã QR phía trên.",
-    "step2": "2. Quét mã QR từ hệ thống ELearning bạn đang sử dụng.",
-    "step3": "3. Ứng dụng sẽ kết nối đến hệ thống tương ứng và chuyển đến màn hình đăng nhập."
+    "guideStep1": "Nhập đường dẫn (link) hệ thống học tập của đơn vị bạn vào ô nhập, đầy đủ dạng http:// hoặc https://.",
+    "guideStep2": "Nhấn “Kết nối” để mở hệ thống học tập của đơn vị bạn ngay trong ứng dụng.",
+    "guideStep3": "Nếu đơn vị bạn có cung cấp mã QR, chọn “Bạn có mã QR?” để quét mã thay cho việc nhập link.",
+    "guideNote": "Đường dẫn và mã QR do đơn vị hoặc nhà trường của bạn cung cấp."
   },
   "scanner": {
     "needCamera": "Cần quyền camera để quét mã QR.",
