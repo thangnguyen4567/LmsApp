@@ -18,7 +18,9 @@
     "invalidUrlTitle": "Warning",
     "invalidUrlMessage": "Invalid address",
     "invalidAttTitle": "Invalid attendance code",
-    "invalidAttMessage": "Please scan a valid attendance QR code."
+    "invalidAttMessage": "Please scan a valid attendance QR code.",
+    "invalidCodeTitle": "Invalid code",
+    "invalidCodeMessage": "The configuration code is incorrect or unsupported. Please check again."
   },
   "header": {
     "scanQr": "Scan QR code",
@@ -30,15 +32,15 @@
   },
   "welcome": {
     "title": "Welcome to AILearning",
-    "body": "Enter your learning system URL to get started.",
-    "inputPlaceholder": "https://elearning.yourorg.com",
+    "body": "Enter the configuration code provided to you to get started.",
+    "inputPlaceholder": "Enter code",
     "connect": "Connect",
     "haveQr": "Have a QR code?",
     "guideTitle": "How to connect",
-    "guideStep1": "Enter your organization's learning system URL in the field above, including the full http:// or https:// prefix.",
+    "guideStep1": "Enter the configuration code provided by your organization in the field above.",
     "guideStep2": "Tap “Connect” to open your organization's learning system inside the app.",
-    "guideStep3": "If your organization provides a QR code, tap “Have a QR code?” to scan it instead of typing the URL.",
-    "guideNote": "The URL and QR code are provided by your organization or school."
+    "guideStep3": "If your organization provides a QR code, tap “Have a QR code?” to scan it instead of entering the code.",
+    "guideNote": "The configuration code and QR code are provided by your organization or school."
   },
   "scanner": {
     "needCamera": "Camera permission is required to scan QR codes.",

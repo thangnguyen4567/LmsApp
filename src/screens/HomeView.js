@@ -44,6 +44,37 @@ const QUIZ_ATTEMPT_PATH = '/mod/quiz/attempt';
 const APPLINK_VERIFY_PATH = '/local/module/vnr/app/applink_verify.php';
 const APPLINK_VERIFY_TIMEOUT_MS = 15000;
 
+// Giải mã base64 (hỗ trợ cả base64 URL-safe) -> chuỗi text. Tự viết bằng số học
+// (không dùng bitwise / atob) để chạy ổn trên mọi JS engine và tránh cảnh báo lint.
+// Trả '' nếu không phải base64 hợp lệ.
+const B64_CHARS =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+function base64ToText(input) {
+    const str = String(input)
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+        .replace(/\s/g, '')
+        .replace(/[=]+$/, '');
+    let output = '';
+    for (let i = 0; i < str.length; i += 4) {
+        const n1 = B64_CHARS.indexOf(str.charAt(i));
+        const n2 = i + 1 < str.length ? B64_CHARS.indexOf(str.charAt(i + 1)) : -1;
+        const n3 = i + 2 < str.length ? B64_CHARS.indexOf(str.charAt(i + 2)) : -1;
+        const n4 = i + 3 < str.length ? B64_CHARS.indexOf(str.charAt(i + 3)) : -1;
+        if (n1 === -1 || n2 === -1) {
+            return ''; // nhóm không đủ / ký tự ngoài bảng base64
+        }
+        output += String.fromCharCode((n1 * 4 + Math.floor(n2 / 16)) % 256);
+        if (n3 !== -1) {
+            output += String.fromCharCode(((n2 % 16) * 16 + Math.floor(n3 / 4)) % 256);
+        }
+        if (n3 !== -1 && n4 !== -1) {
+            output += String.fromCharCode(((n3 % 4) * 64 + n4) % 256);
+        }
+    }
+    return output;
+}
+
 class HomeView extends Component {
     constructor(props) {
         super(props);
@@ -294,11 +325,20 @@ class HomeView extends Component {
     // Endpoint trả về wwwroot (đường dẫn gốc chuẩn, đã gồm sub-path như /lms nếu có)
     // → ta dựng URL đăng nhập từ wwwroot đó. Mọi lỗi (404/500/timeout/mạng/JSON hỏng/
     // isvalid=false) đều coi là link KHÔNG hợp lệ.
-    handleSubmitManualUrl = async (rawUrl) => {
+    handleSubmitManualUrl = async (rawInput) => {
         const {t} = this.props;
-        const input = (rawUrl || '').trim();
+        const raw = (rawInput || '').trim();
+        // Ô nhập chấp nhận CẢ link lẫn "mã" (base64 giải ra link). Ưu tiên coi là
+        // link; nếu không phải link thì thử giải mã base64 để ra link.
+        let input = raw;
         if (!Validate.isUrlValid(input)) {
-            Alert.alert(t('alert.invalidUrlTitle'), t('alert.invalidUrlMessage'));
+            const decoded = base64ToText(raw).trim();
+            if (Validate.isUrlValid(decoded)) {
+                input = decoded;
+            }
+        }
+        if (!Validate.isUrlValid(input)) {
+            Alert.alert(t('alert.invalidCodeTitle'), t('alert.invalidCodeMessage'));
             return false;
         }
         // Gắn endpoint xác thực vào link người dùng nhập + truyền 2 tham số endpoint
@@ -326,7 +366,7 @@ class HomeView extends Component {
             }
             wwwroot = String(data.wwwroot);
         } catch (e) {
-            Alert.alert(t('alert.invalidUrlTitle'), t('alert.invalidUrlMessage'));
+            Alert.alert(t('alert.invalidCodeTitle'), t('alert.invalidCodeMessage'));
             return false;
         } finally {
             clearTimeout(timer);
@@ -336,7 +376,9 @@ class HomeView extends Component {
         const loginUrl = wwwroot.replace(/\/+$/, '') + '/login/index.php?applms=true';
         this.props.onClearRedirectUrl?.();
         saveData('url', loginUrl);
-        this.setState({url: loginUrl, scanQRCode: false, welcomeInitialUrl: input});
+        // Lưu chuỗi NGƯỜI DÙNG NHẬP (raw: mã hoặc link) để điền lại ô input khi quay
+        // về Welcome — không lộ link đã giải mã.
+        this.setState({url: loginUrl, scanQRCode: false, welcomeInitialUrl: raw});
         return true;
     }
     // Quay lại màn Welcome khi đã mở URL nhưng CHƯA đăng nhập (chưa có session từ

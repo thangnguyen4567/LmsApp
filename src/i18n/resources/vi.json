@@ -18,7 +18,9 @@
     "invalidUrlTitle": "Cảnh báo",
     "invalidUrlMessage": "Địa chỉ không hợp lệ",
     "invalidAttTitle": "Mã điểm danh không hợp lệ",
-    "invalidAttMessage": "Vui lòng quét đúng mã QR điểm danh."
+    "invalidAttMessage": "Vui lòng quét đúng mã QR điểm danh.",
+    "invalidCodeTitle": "Mã không hợp lệ",
+    "invalidCodeMessage": "Mã cấu hình không đúng hoặc chưa được hỗ trợ. Vui lòng kiểm tra lại."
   },
   "header": {
     "scanQr": "Quét mã QR",
@@ -30,15 +32,15 @@
   },
   "welcome": {
     "title": "Chào mừng đến với AILearning",
-    "body": "Nhập đường dẫn hệ thống học tập của bạn để bắt đầu.",
-    "inputPlaceholder": "https://elearning.donvicuaban.vn",
+    "body": "Nhập mã cấu hình mà bạn được cung cấp để bắt đầu.",
+    "inputPlaceholder": "Nhập mã",
     "connect": "Kết nối",
     "haveQr": "Bạn có mã QR?",
     "guideTitle": "Hướng dẫn",
-    "guideStep1": "Nhập đường dẫn (link) hệ thống học tập của đơn vị bạn vào ô nhập, đầy đủ dạng http:// hoặc https://.",
+    "guideStep1": "Nhập mã cấu hình do đơn vị của bạn cung cấp vào ô nhập.",
     "guideStep2": "Nhấn “Kết nối” để mở hệ thống học tập của đơn vị bạn ngay trong ứng dụng.",
-    "guideStep3": "Nếu đơn vị bạn có cung cấp mã QR, chọn “Bạn có mã QR?” để quét mã thay cho việc nhập link.",
-    "guideNote": "Đường dẫn và mã QR do đơn vị hoặc nhà trường của bạn cung cấp."
+    "guideStep3": "Nếu đơn vị bạn có cung cấp mã QR, chọn “Bạn có mã QR?” để quét thay cho việc nhập mã.",
+    "guideNote": "Mã cấu hình và mã QR do đơn vị hoặc nhà trường của bạn cung cấp."
   },
   "scanner": {
     "needCamera": "Cần quyền camera để quét mã QR.",

@@ -116,7 +116,7 @@ export default function WelcomePlaceholder(props) {
                     onChangeText={setLinkInput}
                     placeholder={t('welcome.inputPlaceholder')}
                     placeholderTextColor={colors.textSubtle}
-                    keyboardType="url"
+                    keyboardType="default"
                     autoCapitalize="none"
                     autoCorrect={false}
                     autoComplete="off"
