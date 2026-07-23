@@ -412,11 +412,6 @@ class HomeView extends Component {
                 scanQRCode:true,
                 scanAtt:true,
                 isMenuOpen:false,
-                // Chốt URL đang đứng làm nguồn tải cho ContentView. Tránh bug: nếu người
-                // dùng đã điều hướng trong web (navbar/link) rồi mở scanner và bấm Trở về,
-                // ContentView mount lại sẽ tải đúng trang hiện tại thay vì state.url cũ
-                // (vd URL điểm danh lần trước). Quét hợp lệ vẫn ghi đè url sau đó.
-                url: this.state.currentUrl || this.state.url,
             })},
             { icon: 'sign-out-alt', title: t('menu.logout'), onPress: () => Alert.alert(
                 t('logout.confirmTitle'),
@@ -512,9 +507,8 @@ class HomeView extends Component {
                     onRequestClose={() => this.setState({ isMenuOpen: false })}
                     actions={dataMenu}
                 />
-                {/* Webview load trang web */}
-                {this.state.scanQRCode === false ? ( 
-                    !this.state.storageReady ? (
+                <View style={styles.body}>
+                    {!this.state.storageReady ? (
                         <View style={styles.contentLoading}>
                             <ActivityIndicator size="large" />
                         </View>
@@ -525,9 +519,9 @@ class HomeView extends Component {
                             initialUrl={this.state.welcomeInitialUrl}
                         />
                     ) : (
-                        <ContentView 
-                            oneSignalId={this.state.oneSignalId} 
-                            url={this.props.redirectUrl || this.state.url} 
+                        <ContentView
+                            oneSignalId={this.state.oneSignalId}
+                            url={this.props.redirectUrl || this.state.url}
                             setTitle={(data) => this.setState({webTitle:data})}
                             setSession={(data) => this.setState({session:data})}
                             username={this.state.username}
@@ -540,61 +534,57 @@ class HomeView extends Component {
                             sessKey={this.state.session}
                             setUrl={(data) => this.setState({url:data})}
                         />
-                    )
-                ) : (
-                // Quét mã QR
-                    <Scanner
-                        ref={this.scannerRef}
-                        isAttendance={this.state.scanAtt}
-                        onPress={() => {
-                            request(PERMISSIONS.IOS.CAMERA).then(cameraStatus => {});
-                        }}
-                        onBack={() => {
-                            this.setState({scanQRCode:false, scanAtt:false})
-                        }}
-                        onScanner={e => {
-                            // Luồng quét mã ĐIỂM DANH (mở từ menu 3 chấm khi đã đăng nhập):
-                            // chỉ chấp nhận QR là URL hợp lệ VÀ path chứa /mod/attendance/.
-                            if (this.state.scanAtt) {
-                                if (Validate.isUrlValid(e.data) && e.data.indexOf('/mod/attendance/') > -1) {
-                                    this.props.onClearRedirectUrl?.();
-                                    this.setState({url:e.data, scanQRCode:false, scanAtt:false})
-                                } else {
-                                    // Không cho "Trở về": ở lại màn quét để người dùng
-                                    // thử lại. Muốn thoát thì tự bấm nút back của scanner.
-                                    // reset() bật lại việc quét (đã bị chặn sau lần quét trước).
-                                    Alert.alert(t('alert.invalidAttTitle'), t('alert.invalidAttMessage'),[
-                                        {text: t('common.tryAgain'), onPress: () =>
-                                            {
-                                                this.scannerRef.current?.reset()
-                                            }
-                                        },
-                                    ]);
-                                }
-                                return;
-                            }
-                            // Luồng quét QR LINK DỰ ÁN (scanAtt = false) — giữ nguyên như hiện tại.
-                            let newurl = new URL(e.data);
-                            let searchParams  = new URLSearchParams(newurl.search);
-                            if(Validate.isUrlValid(e.data) && this.state.session) {
-                                this.props.onClearRedirectUrl?.();
-                                this.setState({url:e.data,scanQRCode:false})
-                            } else if(Validate.isUrlValid(e.data) && (searchParams.get('applms') === 'true')) {
-                                this.props.onClearRedirectUrl?.();
-                                this.setState({url:e.data,scanQRCode:false})
-                                saveData('url',e.data)
-                            } else {
-                                Alert.alert(t('alert.invalidUrlTitle'), t('alert.invalidUrlMessage'),[
-                                    {text: 'Trở về',onPress: () =>
-                                        {
-                                            this.setState({scanQRCode:false})
+                    )}
+                    {this.state.scanQRCode && (
+                        <View style={styles.scannerOverlay}>
+                            <Scanner
+                                ref={this.scannerRef}
+                                isAttendance={this.state.scanAtt}
+                                onPress={() => {
+                                    request(PERMISSIONS.IOS.CAMERA).then(cameraStatus => {});
+                                }}
+                                onBack={() => {
+                                    this.setState({scanQRCode:false, scanAtt:false})
+                                }}
+                                onScanner={e => {
+                                    if (this.state.scanAtt) {
+                                        if (Validate.isUrlValid(e.data) && e.data.indexOf('/mod/attendance/') > -1) {
+                                            this.setState({scanQRCode:false, scanAtt:false})
+                                            this.handleTabPress(e.data)
+                                        } else {
+                                            Alert.alert(t('alert.invalidAttTitle'), t('alert.invalidAttMessage'),[
+                                                {text: t('common.tryAgain'), onPress: () =>
+                                                    {
+                                                        this.scannerRef.current?.reset()
+                                                    }
+                                                },
+                                            ]);
                                         }
-                                    },
-                                ]);
-                            }
-                        }}
-                    />
-                )}
+                                        return;
+                                    }
+                                    let newurl = new URL(e.data);
+                                    let searchParams  = new URLSearchParams(newurl.search);
+                                    if(Validate.isUrlValid(e.data) && this.state.session) {
+                                        this.props.onClearRedirectUrl?.();
+                                        this.setState({url:e.data,scanQRCode:false})
+                                    } else if(Validate.isUrlValid(e.data) && (searchParams.get('applms') === 'true')) {
+                                        this.props.onClearRedirectUrl?.();
+                                        this.setState({url:e.data,scanQRCode:false})
+                                        saveData('url',e.data)
+                                    } else {
+                                        Alert.alert(t('alert.invalidUrlTitle'), t('alert.invalidUrlMessage'),[
+                                            {text: 'Trở về',onPress: () =>
+                                                {
+                                                    this.setState({scanQRCode:false})
+                                                }
+                                            },
+                                        ]);
+                                    }
+                                }}
+                            />
+                        </View>
+                    )}
+                </View>
                 {showTabBar && (
                     <BottomTabBar
                         items={this.buildTabItems()}
@@ -608,6 +598,17 @@ class HomeView extends Component {
 };
 
 const styles = StyleSheet.create({
+    body: {
+        flex: 1,
+    },
+    scannerOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: colors.surface,
+    },
     contentLoading: {
         flex: 1,
         alignItems: 'center',

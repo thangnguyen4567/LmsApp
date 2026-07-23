@@ -6,7 +6,7 @@ import React, {
   useImperativeHandle,
 } from 'react';
 import {useTranslation} from 'react-i18next';
-import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {BackHandler, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {
   Camera,
   useCameraDevice,
@@ -37,6 +37,19 @@ function Scanner({onScanner, onBack, onPress, isAttendance}, ref) {
       onPress();
     }
   }, [hasPermission, requestPermission, onPress]);
+
+  // Nút back cứng (Android): đóng scanner thay vì để lọt xuống BackHandler của
+  // ContentView (WebView giờ vẫn sống phía dưới) làm goBack trang web. Scanner
+  // mount sau ContentView nên listener này chạy trước và chặn (return true).
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (typeof onBack === 'function') {
+        onBack();
+      }
+      return true;
+    });
+    return () => sub.remove();
+  }, [onBack]);
 
   const onCodeScanned = useCallback(
     codes => {
