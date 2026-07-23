@@ -451,26 +451,22 @@ class HomeView extends Component {
                 leftIconName = 'angle-left';
             }
         } else if (!this.state.scanQRCode && hasWebUrl) {
-            // Đã mở URL nhưng CHƯA đăng nhập (chưa có session từ web): hiện nút về màn
-            // Welcome để nhập lại đường dẫn hoặc quét QR — thay cho nút QR trên header
-            // trước đây. Ở màn Welcome (chưa có URL) thì header trống.
-            // Dùng icon 'home' (về màn khởi đầu) thay cho 'angle-left': nút back dễ gây
-            // hiểu nhầm là "quay lại trang trước", nhất là sau khi logout (session bị
-            // clear nhưng url trang logout/login vẫn còn nên vẫn rơi vào nhánh này).
+            // Đã mở URL nhưng CHƯA đăng nhập (chưa có session từ web): hiện nút về màn Welcome để nhập lại đường dẫn hoặc quét QR
             leftIconName = 'home';
         }
-        // KHÔNG còn icon QR trên header — nhập link & quét QR đã nằm trong màn Welcome.
-        // Suy ra "đã đăng nhập" từ dữ liệu đã cache (MMKV) — có ngay khi storageReady,
-        // KHÔNG chờ session postMessage từ web (vốn chỉ về sau khi trang load xong).
         const isLoggedIn =
             Boolean(this.state.session) ||
             Boolean(this.state.saas_userdata) ||
             (Boolean(this.state.username) && Boolean(this.state.password));
+        const onAuthPage =
+            this.state.currentUrl.indexOf('/login/') > -1 ||
+            this.state.currentUrl.indexOf('/auth/saas/') > -1;
         const showTabBar =
             !this.state.scanQRCode &&
             this.state.storageReady &&
             hasWebUrl &&
             isLoggedIn &&
+            !onAuthPage &&
             !this.state.keyBoard &&
             this.state.currentUrl.indexOf(QUIZ_ATTEMPT_PATH) === -1;
         return (

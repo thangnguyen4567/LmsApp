@@ -234,10 +234,7 @@ class ContentView extends Component {
             (loadUrl.includes('/login/index.php') ||
                 loadUrl.includes('/auth/saas/index.php') ||
                 loadUrl.includes('/login/logout.php'));
-        // Memo source.uri theo loadUrl: chỉ dựng lại URI khi loadUrl đổi (đổi project /
-        // login / web yêu cầu điều hướng). Nhờ vậy khi ĐỔI NGÔN NGỮ trên web (synclang
-        // làm i18n.language đổi → render lại) thì source.uri KHÔNG đổi ⇒ WebView không tự
-        // reload thêm — web đã tự reload theo ?lang rồi. Tránh việc reload 2 lần.
+
         if (loadUrl !== this._sourceLoadUrl) {
             this._sourceLoadUrl = loadUrl;
             const nextUrl = new URL(loadUrl);
@@ -246,12 +243,52 @@ class ContentView extends Component {
             }
             this._sourceUri = nextUrl.toString();
         }
-        const source = {
-            uri: this._sourceUri,
-            method: usePost ? 'POST' : 'GET',
+        // iOS: WKWebView.loadRequest BỎ HTTP body của POST (giới hạn của WebKit) → nạp source POST kiểu Android sẽ mất username/password ⇒ mở lại app không auto-login, hiện lại trang login.
+        const htmlEscape = s => {
+            const str = s === undefined || s === null ? '' : String(s);
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
         };
-        if (usePost) {
-            source.body = getBody();
+        const buildAutoPostHtml = actionUrl => {
+            // Cùng bộ field với getBody() để giữ nguyên contract đăng nhập với backend.
+            const fields = [['fromapp', '1']];
+            if (this.props.username && this.props.password) {
+                fields.push(['username', this.props.username]);
+                fields.push(['password', this.props.password]);
+            }
+            if (this.props.saas_userdata) {
+                fields.push(['user_saas', this.props.saas_userdata]);
+            }
+            const inputs = fields
+                .map(
+                    ([name, value]) =>
+                        `<input type="hidden" name="${htmlEscape(name)}" value="${htmlEscape(value)}">`,
+                )
+                .join('');
+            return (
+                '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+                '<body onload="document.forms[0].submit()">' +
+                `<form action="${htmlEscape(actionUrl)}" method="POST">${inputs}</form>` +
+                '</body></html>'
+            );
+        };
+        let source;
+        if (usePost && Platform.OS === 'ios') {
+            source = {
+                html: buildAutoPostHtml(this._sourceUri),
+                baseUrl: this._sourceUri,
+            };
+        } else {
+            source = {
+                uri: this._sourceUri,
+                method: usePost ? 'POST' : 'GET',
+            };
+            if (usePost) {
+                source.body = getBody();
+            }
         }
         return (
             <View style={styles.container}>
