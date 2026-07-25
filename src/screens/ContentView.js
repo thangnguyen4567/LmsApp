@@ -166,7 +166,77 @@ class ContentView extends Component {
             if (!downloadUrl) {
                 return;
             }
-            this.setState({ downloading: true });
+            // WKWebView coi đây là "tải file" (không phải điều hướng trang) nên đã HỦY
+            // navigation -> onLoadEnd sẽ KHÔNG bắn. Phải tự tắt spinner trang (visible),
+            // nếu không nó xoay mãi. Bật spinner riêng cho việc tải (downloading).
+            this.setState({ visible: false, downloading: true });
+
+            const getHeader = (headers, key) => {
+                const h = headers || {};
+                let val = '';
+                Object.keys(h).forEach(k => {
+                    if (k.toLowerCase() === key) {
+                        val = h[k];
+                    }
+                });
+                return val;
+            };
+            const sanitizeName = name =>
+                (name || '')
+                    .replace(/[/\\:*?"<>|]/g, '_')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            // Tên file: ưu tiên Content-Disposition (Moodle forcedownload luôn set),
+            // fallback theo segment cuối của URL.
+            const pickName = (headers, url) => {
+                const cd = getHeader(headers, 'content-disposition');
+                if (cd) {
+                    // filename*=UTF-8''ten%20file.pdf  (RFC 5987, có dấu/Unicode)
+                    let m = cd.match(/filename\*\s*=\s*[^']*''([^;]+)/i);
+                    if (m && m[1]) {
+                        try {
+                            return sanitizeName(decodeURIComponent(m[1].replace(/["']/g, '').trim()));
+                        } catch (e) {
+                            return sanitizeName(m[1]);
+                        }
+                    }
+                    m = cd.match(/filename\s*=\s*"?([^";]+)"?/i);
+                    if (m && m[1]) {
+                        return sanitizeName(m[1]);
+                    }
+                }
+                try {
+                    const seg = new URL(url).pathname.split('/').filter(Boolean).pop();
+                    if (seg) {
+                        return sanitizeName(decodeURIComponent(seg));
+                    }
+                } catch (e) {
+                    // bỏ qua
+                }
+                return '';
+            };
+            // Nếu tên chưa có đuôi, đoán từ Content-Type để iOS mở đúng ứng dụng.
+            const extFromType = headers => {
+                const ct = String(getHeader(headers, 'content-type'))
+                    .split(';')[0]
+                    .trim()
+                    .toLowerCase();
+                const map = {
+                    'application/pdf': 'pdf',
+                    'application/msword': 'doc',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+                    'application/vnd.ms-excel': 'xls',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+                    'application/vnd.ms-powerpoint': 'ppt',
+                    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+                    'image/png': 'png',
+                    'image/jpeg': 'jpg',
+                    'text/plain': 'txt',
+                    'application/zip': 'zip',
+                };
+                return map[ct] || '';
+            };
+
             try {
                 // Cookie session của WKWebView cho origin của file (useWebKit = true).
                 // Cần vì session Moodle thường là HttpOnly, không đọc được bằng JS.
@@ -180,35 +250,41 @@ class ContentView extends Component {
                 } catch (e) {
                     // Không lấy được cookie (file public) → vẫn thử tải.
                 }
-                // Tên + phần mở rộng file suy từ URL.
-                let filename = 'download';
-                try {
-                    const path = new URL(downloadUrl).pathname;
-                    const last = decodeURIComponent(
-                        path.split('/').filter(Boolean).pop() || '',
-                    );
-                    if (last) {
-                        filename = last;
-                    }
-                } catch (e) {
-                    // giữ mặc định
-                }
-                const dot = filename.lastIndexOf('.');
-                const ext = dot > -1 ? filename.slice(dot + 1) : '';
-                const res = await ReactNativeBlobUtil.config({
-                    fileCache: true,
-                    ...(ext ? { appendExt: ext } : {}),
-                }).fetch(
+                const res = await ReactNativeBlobUtil.config({ fileCache: true }).fetch(
                     'GET',
                     downloadUrl,
                     cookieHeader ? { Cookie: cookieHeader } : {},
                 );
-                const status = res.info().status;
-                if (!status || status >= 400) {
-                    throw new Error('status ' + status);
+                const info = res.info();
+                if (!info.status || info.status >= 400) {
+                    throw new Error('status ' + info.status);
                 }
-                // Mở QuickLook — người dùng xem và bấm Share / "Save to Files".
-                ReactNativeBlobUtil.ios.previewDocument(res.path());
+                // Đặt lại tên đẹp (thay tên tạm ReactNativeBlobUtilTmp_...) rồi mới preview,
+                // để "Save to Files" lưu đúng tên gốc.
+                let name = pickName(info.headers, downloadUrl) || 'download';
+                if (name.indexOf('.') === -1) {
+                    const ext = extFromType(info.headers);
+                    if (ext) {
+                        name = name + '.' + ext;
+                    }
+                }
+                let finalPath = res.path();
+                try {
+                    const dir = ReactNativeBlobUtil.fs.dirs.CacheDir + '/appdownloads';
+                    if (!(await ReactNativeBlobUtil.fs.isDir(dir))) {
+                        await ReactNativeBlobUtil.fs.mkdir(dir);
+                    }
+                    const dest = dir + '/' + name;
+                    if (await ReactNativeBlobUtil.fs.exists(dest)) {
+                        await ReactNativeBlobUtil.fs.unlink(dest);
+                    }
+                    await ReactNativeBlobUtil.fs.mv(res.path(), dest);
+                    finalPath = dest;
+                } catch (e) {
+                    // Không đổi tên được → mở file tạm (vẫn tải được, chỉ xấu tên).
+                }
+                // Mở trình xem tài liệu — sẵn nút Share / "Save to Files".
+                ReactNativeBlobUtil.ios.previewDocument(finalPath);
             } catch (e) {
                 Alert.alert(t('download.failedTitle'), t('download.failedMessage'));
             } finally {
