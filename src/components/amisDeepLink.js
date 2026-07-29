@@ -214,15 +214,24 @@ export function withAmisParams(rawUrl, amisParams) {
 }
 
 /**
+ * Đọc `sid` từ URL sắp nạp. Trả '' nếu không có.
+ * Backend còn nhận `sid` qua cookie `x-sessionid` nữa nên cần chính giá trị,
+ * không chỉ cần biết có hay không.
+ */
+export function readAmisSid(rawUrl) {
+    const parsed = parseUrl(rawUrl);
+    if (!parsed) {
+        return '';
+    }
+    return readParam(parsed.searchParams, 'sid');
+}
+
+/**
  * URL sắp nạp có mang `sid` không. Dùng để quyết định body POST: có `sid` thì
  * `sid` là danh tính duy nhất, không gửi kèm username/password/user_saas.
  */
 export function hasAmisSid(rawUrl) {
-    const parsed = parseUrl(rawUrl);
-    if (!parsed) {
-        return false;
-    }
-    return Boolean(readParam(parsed.searchParams, 'sid'));
+    return Boolean(readAmisSid(rawUrl));
 }
 
 /**

@@ -564,6 +564,7 @@ class HomeView extends Component {
                             onSubmitUrl={this.handleSubmitManualUrl}
                             initialUrl={this.state.welcomeInitialUrl}
                             amisAvailable={this.props.amisAvailable}
+                            amisShowLoginButton={this.props.amisShowLoginButton}
                             amisBusy={this.props.amisBusy}
                             amisPhase={this.props.amisPhase}
                             amisError={this.props.amisError}

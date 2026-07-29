@@ -108,8 +108,11 @@ export const AMIS_CALLBACK = {
     path: 'amis-callback',
 
     // Tên tham số AMIS trả về. Đọc không phân biệt hoa thường.
-    // Theo docx, AMIS trả "token (output: User, SID, TenantID)" nên app nhận cả
-    // token key lẫn sid/tenantid/userid — có gì dùng nấy, thiếu thì hỏi trang QL.
+    //
+    // ✅ MISA đã chốt: AMIS trả về `sid` + `tenantid` + `userid`, **KHÔNG có
+    // token key**. `tenantid` là khoá để hỏi trang QL lấy URL site LMS.
+    // `tokenKey` giữ lại phòng khi sau này có, hiện luôn rỗng — không nhánh nào
+    // phụ thuộc vào nó.
     params: {
         tokenKey: 'token',
         sid: 'sid',
@@ -129,8 +132,11 @@ export const AMIS_CALLBACK = {
 /* ────────────────────────────────────────────────────────────────────────────
  * 4. ENDPOINT TRANG QUẢN LÝ VNR — CHỜ BE VNR (spec §9.2 mục 7, task T0.4)
  *
- * Luồng: AMIS đã gửi trước `token key` + `SID` + `tenantid` lên trang QL; app
- * LMS cầm `token key` sang tra ngược để lấy link site LMS của tenant.
+ * Luồng: app LMS xin quyền từ AMIS, nhận về `sid` + `tenantid` + `userid`, rồi
+ * gửi **`tenantid`** sang trang QL để lấy toàn bộ thông tin tenant — trong đó
+ * quan trọng nhất là **URL site LMS** để nạp WebView.
+ *
+ * `tenantid` là KHOÁ TRA CỨU. Không có nó thì không biết nạp site nào.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 export const VNR_TENANT_LOOKUP = {
@@ -139,12 +145,13 @@ export const VNR_TENANT_LOOKUP = {
     method: 'POST',
     timeoutMs: 15000,
 
-    // Tên field app LMS GỬI ĐI.
+    // Tên field app LMS GỬI ĐI. `tenantid` là khoá, phần còn lại gửi kèm cho đủ
+    // ngữ cảnh. Đặt '' để không gửi field đó.
     request: {
-        tokenKey: 'tokenkey',
         tenantId: 'tenantid',
         sid: 'sid',
         userId: 'userid',
+        tokenKey: 'tokenkey', // hiện luôn rỗng, xem mục 3
     },
 
     // Tên field app LMS ĐỌC VỀ. `link` là wwwroot site LMS của tenant
@@ -279,6 +286,26 @@ export function joinAmisUrl(path) {
 /** Đã có đủ thông tin để nói chuyện với app AMIS chưa. */
 export function isAmisConfigured() {
     return Boolean(getAmisBaseUrl());
+}
+
+/**
+ * ⏸️ TẠM ẨN nút "Đăng nhập bằng AMIS" trên CẢ HAI nền tảng.
+ *
+ * Nút đó không thêm được gì: app đã tự mở AMIS khi máy trắng thông tin; mở
+ * không được (chưa cài AMIS) thì im lặng không làm gì; còn mở được rồi mà người
+ * dùng tắt AMIS thì đã có thông báo kèm nút "Thử lại" ngay bên dưới.
+ *
+ * ⚠️ Chỉ ẩn nút, KHÔNG tắt tính năng: nút "Thử lại" vẫn chạy (cờ riêng
+ * `amisAvailable`), và luồng tự mở AMIS lúc khởi động vẫn nguyên vẹn.
+ *
+ * Đường vào duy nhất bị mất: người dùng đã có site đang lưu, bấm Home về màn
+ * Welcome rồi muốn đăng nhập bằng AMIS — lúc đó phải nhập mã cấu hình tay.
+ *
+ * Bật lại: `return true`, hoặc `return Platform.OS !== 'android'` nếu chỉ muốn
+ * hiện trên iOS.
+ */
+export function shouldShowAmisLoginButton() {
+    return false;
 }
 
 /**

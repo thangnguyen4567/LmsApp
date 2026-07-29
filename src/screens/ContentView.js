@@ -3,7 +3,7 @@ import { withTranslation } from 'react-i18next';
 import { WebView } from 'react-native-webview';
 import { URL } from 'react-native-url-polyfill';
 import { saveData } from '../components/AsyncStorage';
-import { hasAmisSid } from '../components/amisDeepLink';
+import { hasAmisSid, readAmisSid } from '../components/amisDeepLink';
 import {
   StyleSheet,
   View,
@@ -28,7 +28,14 @@ class ContentView extends Component {
             webview: '',
             loadFailed: false,
             downloading: false, // iOS: đang tải file qua onFileDownload
+            // `sid` mà cookie x-sessionid đang mang. '' = cookie đã được dọn.
+            // Chưa khớp với sid của URL sắp nạp thì CHƯA render WebView.
+            // Khởi tạo `null` (không phải '') để lần chạy đầu LUÔN đồng bộ một
+            // lần — kể cả khi URL không có sid, vì đúng lúc đó mới cần dọn
+            // cookie sót lại từ phiên trước.
+            sidCookieFor: null,
         };
+        this._syncingSidCookie = false;
     }
     componentDidMount() {
         this._backHandler = BackHandler.addEventListener(
@@ -41,10 +48,65 @@ class ContentView extends Component {
                 return false;
             },
         );
+        this.syncSidCookie();
+    }
+    componentDidUpdate(prevProps) {
+        if (prevProps.url !== this.props.url) {
+            this.syncSidCookie();
+        }
     }
     componentWillUnmount() {
         this._backHandler?.remove();
     }
+
+    /**
+     * Đồng bộ cookie `x-sessionid` với `sid` của URL sắp nạp.
+     *
+     * Backend đọc `sid` ở HAI chỗ: query string và cookie `x-sessionid`
+     * (saas/lib.php → `get()`), nên phải đặt cookie trước khi WebView phát
+     * request đầu tiên — đặt sau là request đó đã đi mất rồi.
+     *
+     * ⚠️ Không có `sid` thì XOÁ cookie, không để lại. Cookie sống qua nhiều lần
+     * mở app, mà `get()` cho cookie ĐÈ LÊN `sid` truyền vào — để sót một sid cũ
+     * là những lần sau đăng nhập bằng phiên đã hết hạn, đúng thứ mà quy tắc
+     * "không bao giờ lưu sid" đang tránh.
+     */
+    syncSidCookie = async () => {
+        if (this._syncingSidCookie) {
+            return;
+        }
+        const url = this.props.url || '';
+        const sid = readAmisSid(url);
+        if (sid === this.state.sidCookieFor) {
+            return;
+        }
+        let origin = '';
+        try {
+            origin = new URL(url).origin;
+        } catch (e) {
+            // URL không phân tích được thì không có origin để gắn cookie.
+            this.setState({ sidCookieFor: sid });
+            return;
+        }
+        this._syncingSidCookie = true;
+        try {
+            if (sid) {
+                await CookieManager.set(
+                    origin,
+                    { name: 'x-sessionid', value: sid, path: '/' },
+                    true,
+                );
+            } else {
+                await CookieManager.clearByName(origin, 'x-sessionid', true);
+            }
+        } catch (e) {
+            // Ghi cookie hỏng thì vẫn nạp trang: backend còn đọc được `sid` ở
+            // query string, chặn ở đây chỉ làm người dùng kẹt màn trắng.
+        } finally {
+            this._syncingSidCookie = false;
+            this.setState({ sidCookieFor: sid });
+        }
+    };
     render() {
         const { t, i18n } = this.props;
         const currentLanguage = i18n.language;
@@ -374,6 +436,16 @@ class ContentView extends Component {
             if (usePost) {
                 source.body = getBody();
             }
+        }
+        // Cookie x-sessionid phải xong TRƯỚC khi WebView phát request đầu tiên.
+        // Kiểm tra đồng bộ ngay trong render (không chờ effect) vì `source` đổi
+        // là WebView nạp ngay — chậm một nhịp là request đã đi mất.
+        if (readAmisSid(this.props.url) !== this.state.sidCookieFor) {
+            return (
+                <View style={[styles.container, commonStyles.overlayCenter]}>
+                    <ActivityIndicator size="large" color={colors.systemcolor} />
+                </View>
+            );
         }
         return (
             <View style={styles.container}>

@@ -56,25 +56,33 @@ export async function isPackageInstalled(packageName) {
 }
 
 /**
- * Mở URL bằng ĐÚNG app chỉ định, không rơi ra trình duyệt.
+ * Mở URL bằng ĐÚNG app chỉ định.
  *
  * Có `setPackage` nên không phụ thuộc việc MISA đã xác thực App Link
  * (`assetlinks.json`) hay chưa — thứ mà link `https://misajsc.amis.vn` rất dễ
  * vướng trên Android 12+.
  *
- * Không có module native (iOS / build cũ) thì lùi về `Linking.openURL` như cũ.
+ * ⚠️ Mở không được thì trả `false` và **KHÔNG làm gì cả** — cố tình không lùi
+ * về `Linking.openURL`, vì link AMIS là link `https` nên đường lùi đó sẽ ném
+ * người dùng chưa cài AMIS vào trình duyệt, chẳng giúp được gì mà còn khó hiểu.
+ *
+ * Chỉ khi hoàn toàn không có module native (bản build Android cũ) mới lùi về
+ * `Linking` — lúc đó không còn lựa chọn nào khác.
  */
 export async function openUrlInApp(url, packageName) {
     if (!url) {
         return false;
     }
-    if (amisNative && packageName) {
+    if (amisNative) {
+        if (!packageName) {
+            return false;
+        }
         try {
             await amisNative.openInApp(url, packageName);
             return true;
         } catch (_e) {
-            // Chưa cài AMIS, hoặc AMIS không nhận URL này. Rơi xuống đường lùi
-            // để ít nhất người dùng thấy một cái gì đó thay vì im lặng.
+            // Chưa cài AMIS, hoặc AMIS không nhận URL này.
+            return false;
         }
     }
     try {

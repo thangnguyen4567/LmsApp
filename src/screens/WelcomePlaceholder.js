@@ -157,7 +157,7 @@ export default function WelcomePlaceholder(props) {
                     )}
                 </TouchableOpacity>
 
-                {props.amisAvailable && (
+                {props.amisShowLoginButton && (
                     <TouchableOpacity
                         style={[styles.amisButton, amisBusy && styles.primaryButtonDisabled]}
                         onPress={() => props.onAmisLogin?.()}

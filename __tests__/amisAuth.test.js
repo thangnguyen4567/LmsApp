@@ -39,7 +39,13 @@ const {
     getCallbackUrl,
     isAmisConfigured,
     joinAmisUrl,
+    shouldShowAmisLoginButton,
 } = require('../src/services/amisConfig');
+
+const {
+    hasAmisSid,
+    readAmisSid,
+} = require('../src/components/amisDeepLink');
 
 const {
     LINK_TYPE,
@@ -158,9 +164,11 @@ describe('cấu hình JS phải khớp khai báo native', () => {
         const key = plist.indexOf('<key>LSApplicationQueriesSchemes</key>');
         expect(key).toBeGreaterThan(-1);
         // Phải nằm NGOÀI vùng comment, nếu không iOS bỏ qua như chưa khai.
-        const commented = plist.lastIndexOf('<!--', key);
+        // Nằm trong comment = có '<!--' trước đó mà chưa được '-->' đóng lại.
+        const opened = plist.lastIndexOf('<!--', key);
         const closed = plist.lastIndexOf('-->', key);
-        expect(commented).toBeLessThan(closed);
+        const insideComment = opened > -1 && opened > closed;
+        expect(insideComment).toBe(false);
         expect(plist.slice(key, key + 200)).toContain(
             '<string>' + AMIS_APP.scheme + '</string>',
         );
@@ -487,30 +495,71 @@ describe('isCallbackTimedOut', () => {
     });
 });
 
-describe('lookupTenant — endpoint giả khi BE chưa cấp endpoint thật', () => {
-    test('trả link + sid để chạy trọn luồng ngay hôm nay', async () => {
-        const res = await lookupTenant({tokenKey: 'TK1'});
+describe('lookupTenant — tra thông tin tenant, khoá là tenantid', () => {
+    // MISA đã chốt: AMIS trả sid + tenantid + userid, KHÔNG có token key.
+    // `tenantid` là thứ trang QL dùng để trả về URL site LMS.
+    test('chỉ cần tenantid là tra được, không cần token key', async () => {
+        const res = await lookupTenant({tenantid: 'T001', sid: 'S1'});
         expect(res.ok).toBe(true);
         expect(res.mocked).toBe(true);
         expect(res.link).toBe(AMIS_MOCK.response.link);
-        expect(res.sid).toBeTruthy();
+        expect(res.tenantid).toBe('T001');
     });
 
     test('tham số AMIS gửi sang được ưu tiên hơn dữ liệu giả', async () => {
         const res = await lookupTenant({
-            tokenKey: 'TK1',
             sid: 'SID_THAT',
             tenantid: 'T999',
+            userid: 'U7',
         });
         expect(res.sid).toBe('SID_THAT');
         expect(res.tenantid).toBe('T999');
+        expect(res.userid).toBe('U7');
     });
 
     test('đặt failWith là thử được nhánh lỗi mà không cần BE', async () => {
         AMIS_MOCK.failWith = LOOKUP_ERROR.NOTFOUND;
-        const res = await lookupTenant({tokenKey: 'TK1'});
+        const res = await lookupTenant({tenantid: 'T001'});
         expect(res.ok).toBe(false);
         expect(res.error).toBe(LOOKUP_ERROR.NOTFOUND);
+    });
+});
+
+describe('readAmisSid — nguồn giá trị cho cookie x-sessionid', () => {
+    test('lấy đúng giá trị sid, không chỉ có/không', () => {
+        expect(
+            readAmisSid('https://x.vn/auth/saas/index.php?sid=ABC&tenantid=T1'),
+        ).toBe('ABC');
+    });
+
+    test('không phân biệt hoa thường tên tham số', () => {
+        expect(readAmisSid('https://x.vn/a.php?SID=ABC')).toBe('ABC');
+    });
+
+    test('không có sid -> chuỗi rỗng (tín hiệu để XOÁ cookie cũ)', () => {
+        expect(readAmisSid('https://x.vn/auth/saas/index.php')).toBe('');
+        expect(readAmisSid('')).toBe('');
+        expect(readAmisSid('khong-phai-url')).toBe('');
+    });
+
+    test('hasAmisSid vẫn nhất quán với readAmisSid', () => {
+        expect(hasAmisSid('https://x.vn/a.php?sid=ABC')).toBe(true);
+        expect(hasAmisSid('https://x.vn/a.php')).toBe(false);
+    });
+});
+
+describe('nút "Đăng nhập bằng AMIS" — tạm ẩn cả hai nền tảng', () => {
+    test('ẩn trên cả iOS lẫn Android', () => {
+        const {Platform} = require('react-native');
+        const realOS = Platform.OS;
+        try {
+            Platform.OS = 'ios';
+            expect(shouldShowAmisLoginButton()).toBe(false);
+            Platform.OS = 'android';
+            expect(shouldShowAmisLoginButton()).toBe(false);
+        } finally {
+            Platform.OS = realOS;
+        }
     });
 });
 

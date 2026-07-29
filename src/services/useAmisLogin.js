@@ -8,6 +8,7 @@ import {
     LOOKUP_ERROR,
     isAmisConfigured,
     isTenantLookupConfigured,
+    shouldShowAmisLoginButton,
 } from './amisConfig';
 import {
     LINK_TYPE,
@@ -127,7 +128,10 @@ export default function useAmisLogin(options = {}) {
                     return;
                 }
             }
-            if (!parsed.tokenKey && !parsed.sid) {
+            // `tenantid` là khoá tra cứu ở trang QL — thiếu nó thì không biết
+            // nạp site LMS nào, có `sid` cũng vô dụng. Chấp nhận `tokenKey`
+            // thay thế phòng khi sau này MISA đổi lại cách trả.
+            if (!parsed.tenantid && !parsed.tokenKey) {
                 // AMIS gọi về nhưng rỗng — thường là bản AMIS chưa hỗ trợ.
                 goIdle(LOOKUP_ERROR.UNKNOWN);
                 return;
@@ -316,11 +320,17 @@ export default function useAmisLogin(options = {}) {
 
     const dismissError = useCallback(() => setError(''), []);
 
+    // AMIS có dùng được không. Điều khiển nút "Thử lại" sau khi báo lỗi —
+    // nút đó phải còn ở MỌI nền tảng, kể cả nơi nút đăng nhập bị ẩn.
+    const usable = amisAvailable && isAmisConfigured();
+
     return {
         phase,
         error,
-        // Hiện nút "Đăng nhập bằng AMIS" khi máy có AMIS và đã cấu hình đủ.
-        amisAvailable: amisAvailable && isAmisConfigured(),
+        amisAvailable: usable,
+        // Nút "Đăng nhập bằng AMIS" đứng sẵn ở màn Welcome — hiện tại ẩn trên
+        // Android, xem `shouldShowAmisLoginButton()`.
+        showLoginButton: usable && shouldShowAmisLoginButton(),
         busy:
             phase === AMIS_PHASE.WAITING || phase === AMIS_PHASE.EXCHANGING,
         // Chỉ cho huỷ tay khi đang chờ AMIS. Lúc đang gọi trang QL thì không —

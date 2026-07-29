@@ -188,6 +188,7 @@ function HomeScreen({
           amisTenantId={redirectTenantId}
           fromAmis={fromAmis}
           amisAvailable={amis.amisAvailable}
+          amisShowLoginButton={amis.showLoginButton}
           amisBusy={amis.busy}
           amisPhase={amis.phase}
           amisError={amis.error}
