@@ -43,6 +43,20 @@
     "guideStep3": "Nếu đơn vị bạn có cung cấp mã QR, chọn “Bạn có mã QR?” để quét thay cho việc nhập mã.",
     "guideNote": "Mã cấu hình và mã QR do đơn vị hoặc nhà trường của bạn cung cấp."
   },
+  "amis": {
+    "loginButton": "Đăng nhập bằng AMIS",
+    "waiting": "Đang chờ xác nhận từ AMIS…",
+    "exchanging": "Đang xác thực với hệ thống…",
+    "errorTimeout": "Không nhận được phản hồi từ AMIS. Vui lòng thử lại.",
+    "errorCancelled": "Bạn đã rời AMIS mà chưa xác nhận. Bạn có thể thử lại.",
+    "errorDenied": "Bạn chưa cấp quyền cho AILearning. Bạn có thể thử lại hoặc nhập mã cấu hình.",
+    "errorState": "Phiên xác thực không hợp lệ. Vui lòng thử lại.",
+    "errorExpired": "Mã xác thực đã hết hạn. Vui lòng thử lại.",
+    "errorNotfound": "Không tìm thấy thông tin đơn vị của bạn. Vui lòng liên hệ quản trị viên.",
+    "errorNetwork": "Không kết nối được máy chủ. Vui lòng kiểm tra mạng và thử lại.",
+    "errorConfig": "Tính năng đăng nhập bằng AMIS chưa sẵn sàng.",
+    "errorUnknown": "Không xác thực được với AMIS. Vui lòng thử lại."
+  },
   "scanner": {
     "needCamera": "Cần quyền camera để quét mã QR.",
     "allowCamera": "Cho phép camera",

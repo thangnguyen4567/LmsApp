@@ -24,6 +24,7 @@ import {
 import { setAppLanguage } from '../i18n';
 import ActionGridModal from '../components/ActionGridModal';
 import InfoModal from '../components/InfoModal';
+import { AMIS_PHASE } from '../services/useAmisLogin';
 
 /**
  * Màn mặc định khi chưa có URL LMS (chưa nhập link / chưa quét QR).
@@ -77,6 +78,21 @@ export default function WelcomePlaceholder(props) {
 
     const isSubmitDisabled = submitting || linkInput.trim().length === 0;
 
+    // Kịch bản A (chưa cài app LMS → cài xong mở thẳng): xin token từ app AMIS.
+    // Nút chỉ hiện khi máy CÓ app AMIS và src/services/amisConfig.js đã điền —
+    // máy không có AMIS thì màn này y hệt hôm nay.
+    const amisBusy = Boolean(props.amisBusy);
+    const amisMessage =
+        props.amisPhase === AMIS_PHASE.EXCHANGING
+            ? t('amis.exchanging')
+            : t('amis.waiting');
+    // Mã lỗi từ useAmisLogin ('timeout', 'denied', …) -> khoá i18n tương ứng.
+    const amisErrorKey = props.amisError
+        ? 'amis.error' +
+          props.amisError.charAt(0).toUpperCase() +
+          props.amisError.slice(1)
+        : '';
+
     const guideLines = [
         t('welcome.guideStep1'),
         t('welcome.guideStep2'),
@@ -85,6 +101,7 @@ export default function WelcomePlaceholder(props) {
     ];
 
     return (
+        <View style={styles.root}>
         <ScrollView
             contentContainerStyle={styles.scrollContent}
             style={commonStyles.screenAlt}
@@ -140,6 +157,37 @@ export default function WelcomePlaceholder(props) {
                     )}
                 </TouchableOpacity>
 
+                {props.amisAvailable && (
+                    <TouchableOpacity
+                        style={[styles.amisButton, amisBusy && styles.primaryButtonDisabled]}
+                        onPress={() => props.onAmisLogin?.()}
+                        disabled={amisBusy}
+                        accessibilityRole="button"
+                        accessibilityState={{disabled: amisBusy}}
+                        accessibilityLabel={t('amis.loginButton')}
+                    >
+                        <Text style={styles.amisButtonText}>{t('amis.loginButton')}</Text>
+                    </TouchableOpacity>
+                )}
+
+                {Boolean(amisErrorKey) && !amisBusy && (
+                    <View style={styles.amisErrorBox}>
+                        <Text style={styles.amisErrorText}>{t(amisErrorKey)}</Text>
+                        {props.amisAvailable && (
+                            <TouchableOpacity
+                                onPress={() => {
+                                    props.onDismissAmisError?.();
+                                    props.onAmisLogin?.();
+                                }}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('common.tryAgain')}
+                            >
+                                <Text style={styles.amisRetryText}>{t('common.tryAgain')}</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
+
                 <TouchableOpacity
                     style={styles.haveQrLink}
                     onPress={() => props.setScanQRCode(true)}
@@ -172,10 +220,35 @@ export default function WelcomePlaceholder(props) {
                 actions={langMenu}
             />
         </ScrollView>
+
+        {/* Đang chờ AMIS trả token / đang đổi token ở trang QL. Che cả màn để
+            người dùng không bấm tiếp vào ô nhập link giữa chừng. */}
+        {amisBusy && (
+            <View style={styles.amisOverlay}>
+                <ActivityIndicator size="large" color={colors.systemcolor} />
+                <Text style={styles.amisOverlayText}>{amisMessage}</Text>
+                {/* Lưới đỡ cuối: bình thường app tự thôi chờ khi người dùng
+                    quay lại từ AMIS, nút này để không bao giờ có ngõ cụt. */}
+                {props.amisCanCancel && (
+                    <TouchableOpacity
+                        style={styles.amisCancel}
+                        onPress={() => props.onCancelAmisLogin?.()}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('common.cancel')}
+                    >
+                        <Text style={styles.amisCancelText}>{t('common.cancel')}</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+        )}
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    root: {
+        flex: 1,
+    },
     scrollContent: {
         flexGrow: 1,
         alignItems: 'center',
@@ -248,6 +321,63 @@ const styles = StyleSheet.create({
         fontSize: fontSizes.text, // 16
         fontWeight: typography.fontWeights.semibold, // '600'
         color: colors.white,
+    },
+    // Nút phụ: viền thay vì nền đặc, để "Kết nối" vẫn là hành động chính.
+    amisButton: {
+        width: '100%',
+        height: 48,
+        borderRadius: radius.md, // 12
+        borderWidth: 1,
+        borderColor: colors.systemcolor,
+        backgroundColor: colors.surface,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: spacing.md, // 12
+    },
+    amisButtonText: {
+        fontSize: fontSizes.text, // 16
+        fontWeight: typography.fontWeights.semibold, // '600'
+        color: colors.systemcolor,
+    },
+    amisErrorBox: {
+        width: '100%',
+        marginTop: spacing.md, // 12
+        alignItems: 'center',
+    },
+    amisErrorText: {
+        fontSize: fontSizes.h5, // 14
+        color: colors.textMuted, // #555
+        textAlign: 'center',
+        lineHeight: 20,
+    },
+    amisRetryText: {
+        marginTop: spacing.sm, // 8
+        fontSize: fontSizes.h5, // 14
+        color: colors.systemcolor,
+        fontWeight: typography.fontWeights.medium, // '500'
+    },
+    amisOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.92)',
+    },
+    amisOverlayText: {
+        marginTop: spacing.base, // 16
+        fontSize: fontSizes.h5, // 14
+        color: colors.textMuted, // #555
+        textAlign: 'center',
+        paddingHorizontal: spacing.xl, // 24
+    },
+    amisCancel: {
+        marginTop: spacing.lg, // 20
+        paddingVertical: spacing.sm, // 8
+        paddingHorizontal: spacing.lg, // 20
+    },
+    amisCancelText: {
+        fontSize: fontSizes.h5, // 14
+        color: colors.systemcolor,
+        fontWeight: typography.fontWeights.medium, // '500'
     },
     haveQrLink: {
         marginTop: spacing.base, // 16

@@ -20,10 +20,8 @@ const AMIS_PARAMS = ['sid', 'tenantid', 'lang', 'userid'];
 const SUPPORTED_LANGS = ['vi', 'en'];
 const FALLBACK_LANG = 'en';
 
-// URL scheme của app AMIS, dùng để quay ngược về AMIS.
-// ⚠️ CHỜ MISA CUNG CẤP — để rỗng thì nút "quay lại AMIS" không hiển thị.
-// Điền xong là nút tự xuất hiện, không phải sửa chỗ nào khác.
-export const AMIS_APP_SCHEME = '';
+// ⚠️ Định danh app AMIS (scheme, package name, endpoint trang QL…) nằm ở
+// src/services/amisConfig.js — một chỗ duy nhất để điền khi MISA/BE cung cấp.
 
 /**
  * Deep link này có phải do app AMIS mở không.

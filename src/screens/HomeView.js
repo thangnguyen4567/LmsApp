@@ -8,15 +8,15 @@ import {URL,URLSearchParams} from 'react-native-url-polyfill';
 import {OneSignal} from 'react-native-onesignal';
 import {PERMISSIONS, request} from 'react-native-permissions';
 import {saveData,getData,deleteData} from '../components/AsyncStorage';
-import {AMIS_APP_SCHEME} from '../components/amisDeepLink';
+import {getAmisReturnUrl} from '../services/amisConfig';
+import {clearAmisSession, openAmisUrl} from '../services/amisAuth';
 import ActionGridModal from '../components/ActionGridModal';
 import {
   StyleSheet,
   View,
   Keyboard,
   Alert,
-  ActivityIndicator,
-  Linking
+  ActivityIndicator
 } from 'react-native';
 import Scanner from './Scanner';
 import WelcomePlaceholder from './WelcomePlaceholder';
@@ -212,7 +212,13 @@ class HomeView extends Component {
     // Quay lại app AMIS. Chỉ gọi khi đã vào từ AMIS nên AMIS chắc chắn có trên
     // máy — không cần canOpenURL, lỗi thì bỏ qua để không chặn người dùng.
     returnToAmisApp = () => {
-        Linking.openURL(AMIS_APP_SCHEME).catch(() => {});
+        const url = getAmisReturnUrl();
+        if (!url) {
+            return;
+        }
+        // openAmisUrl: trên Android khoá intent vào đúng package AMIS nên không
+        // rơi ra trình duyệt; iOS dùng custom scheme nên vốn đã trỏ thẳng app.
+        openAmisUrl(url);
     };
     // Nhận cấu hình navbar từ web (label đã dịch theo tenant) + cache lại
     setNavConfig = (navConfig) => {
@@ -439,7 +445,7 @@ class HomeView extends Component {
     }
     render() {
         const {t} = this.props;
-        const canReturnToAmis = Boolean(this.props.fromAmis && AMIS_APP_SCHEME);
+        const canReturnToAmis = Boolean(this.props.fromAmis && getAmisReturnUrl());
         const dataMenu = [
             { icon: 'qrcode', title: t('menu.scanQr'), onPress: () => this.setState({
                 scanQRCode:true,
@@ -480,9 +486,11 @@ class HomeView extends Component {
                         deleteData('password');
                         deleteData('saas_userdata');
                         deleteData('navConfig');
-                        // Quên luôn tenant đang gắn, để deep link AMIS lần sau
-                        // (kể cả cùng tenant) được coi là phiên mới.
-                        deleteData('amis_tenantid');
+                        // Quên luôn tenant đang gắn + cờ chống lặp của kịch bản
+                        // A, để deep link AMIS lần sau (kể cả cùng tenant) được
+                        // coi là phiên mới, và nút "Đăng nhập bằng AMIS" chạy
+                        // lại được ngay chứ không phải chờ hết backoff.
+                        clearAmisSession();
                         this._tenantId = '';
                     }},
                 ]
@@ -555,6 +563,14 @@ class HomeView extends Component {
                             setScanQRCode={(data) => this.setState({scanQRCode:data})}
                             onSubmitUrl={this.handleSubmitManualUrl}
                             initialUrl={this.state.welcomeInitialUrl}
+                            amisAvailable={this.props.amisAvailable}
+                            amisBusy={this.props.amisBusy}
+                            amisPhase={this.props.amisPhase}
+                            amisError={this.props.amisError}
+                            amisCanCancel={this.props.amisCanCancel}
+                            onAmisLogin={this.props.onAmisLogin}
+                            onCancelAmisLogin={this.props.onCancelAmisLogin}
+                            onDismissAmisError={this.props.onDismissAmisError}
                         />
                     ) : (
                         <ContentView

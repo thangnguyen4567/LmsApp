@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import HomeView from './src/screens/HomeView';
 import OfflineView from './src/screens/OfflineView';
@@ -14,6 +14,7 @@ import {
   toSaasLoginUrl,
   normalizeLegacyMisaUrl,
 } from './src/components/amisDeepLink';
+import useAmisLogin from './src/services/useAmisLogin';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
@@ -21,6 +22,23 @@ import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 export type RootStackParamList = {
   Home: {url?: string} | undefined;
+};
+
+// Bộ tham số AMIS của MỘT phiên. Chỉ sống trong state, không bao giờ persist.
+type AmisParams = {
+  sid: string;
+  tenantid: string;
+  lang: string;
+  userid: string;
+};
+
+// Kết quả kịch bản A trả về từ useAmisLogin (`url` là wwwroot site LMS).
+type AmisSession = {
+  url: string;
+  sid?: string;
+  tenantid?: string;
+  lang?: string;
+  userid?: string;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -76,6 +94,54 @@ function HomeScreen({
     userid: routeUserId,
   } = readAmisRouteParams(route.params as Record<string, unknown> | undefined);
 
+  /**
+   * ĐIỂM HỘI TỤ của cả hai kịch bản:
+   * - Kịch bản B: AMIS mở app bằng deep link kèm sẵn `sid`.
+   * - Kịch bản A: app tự xin token từ AMIS rồi đổi ở trang QL ra `link` + `sid`.
+   * Cả hai đều dừng ở đây với cùng bộ tham số, nên chỉ có một chỗ quyết định
+   * lưu gì xuống máy và nạp gì lên WebView.
+   */
+  const applySession = useCallback(
+    (baseUrl: string, params: AmisParams, cameFromAmis: boolean) => {
+      if (!baseUrl) {
+        return;
+      }
+      // MMKV chỉ giữ URL sạch. sid/tenantid dùng một lần cho phiên này — lưu lại
+      // thì lần mở app sau sẽ POST bằng sid đã hết hạn và rớt về trang đăng nhập.
+      // lang cũng không lưu vào URL: ngôn ngữ được nhớ qua khoá app_locale.
+      saveData('url', baseUrl);
+      setRedirectFromLink(withAmisParams(baseUrl, params));
+      setRedirectTenantId(params.tenantid || '');
+      setFromAmis(cameFromAmis);
+      // Đổi luôn ngôn ngữ app cho khớp, khỏi phải chờ web gửi ngược `synclang`.
+      if (params.lang) {
+        setAppLanguage(params.lang);
+      }
+    },
+    [],
+  );
+
+  // Kịch bản A — máy chưa có phiên nào, app tự hỏi AMIS xin token.
+  // Toàn bộ tính năng tự ngủ khi src/services/amisConfig.js chưa được điền.
+  const amis = useAmisLogin({
+    lang: i18n.language,
+    onSession: useCallback(
+      (session: AmisSession) => {
+        applySession(
+          toSaasLoginUrl(session.url),
+          {
+            sid: session.sid || '',
+            tenantid: session.tenantid || '',
+            lang: session.lang || '',
+            userid: session.userid || '',
+          },
+          true,
+        );
+      },
+      [applySession],
+    ),
+  });
+
   useEffect(() => {
     if (linkUrl === '') {
       setRedirectFromLink('');
@@ -100,18 +166,19 @@ function HomeScreen({
     const baseUrl = sid
       ? toSaasLoginUrl(fromUrl.cleanUrl)
       : normalizeLegacyMisaUrl(fromUrl.cleanUrl);
-    // MMKV chỉ giữ URL sạch. sid/tenantid dùng một lần cho phiên này — lưu lại
-    // thì lần mở app sau sẽ POST bằng sid đã hết hạn và rớt về trang đăng nhập.
-    // lang cũng không lưu vào URL: ngôn ngữ được nhớ qua khoá app_locale.
-    saveData('url', baseUrl);
-    setRedirectFromLink(withAmisParams(baseUrl, {sid, tenantid, lang, userid}));
-    setRedirectTenantId(tenantid);
-    setFromAmis(isFromAmisApp({sid, tenantid, userid}));
-    // Đổi luôn ngôn ngữ app cho khớp, khỏi phải chờ web gửi ngược `synclang`.
-    if (lang) {
-      setAppLanguage(lang);
-    }
-  }, [linkUrl, routeSid, routeTenantId, routeLang, routeUserId]);
+    applySession(
+      baseUrl,
+      {sid, tenantid, lang, userid},
+      isFromAmisApp({sid, tenantid, userid}),
+    );
+  }, [
+    linkUrl,
+    routeSid,
+    routeTenantId,
+    routeLang,
+    routeUserId,
+    applySession,
+  ]);
 
   return (
     <View style={{flex: 1}}>
@@ -120,6 +187,14 @@ function HomeScreen({
           redirectUrl={redirectFromLink}
           amisTenantId={redirectTenantId}
           fromAmis={fromAmis}
+          amisAvailable={amis.amisAvailable}
+          amisBusy={amis.busy}
+          amisPhase={amis.phase}
+          amisError={amis.error}
+          amisCanCancel={amis.canCancel}
+          onAmisLogin={amis.startAmisLogin}
+          onCancelAmisLogin={amis.cancelAmisLogin}
+          onDismissAmisError={amis.dismissError}
           onClearRedirectUrl={() => setRedirectFromLink('')}
         />
       ) : (
