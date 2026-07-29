@@ -4,8 +4,16 @@ import HomeView from './src/screens/HomeView';
 import OfflineView from './src/screens/OfflineView';
 import {ActivityIndicator, PermissionsAndroid, View, Platform} from 'react-native';
 import {I18nextProvider} from 'react-i18next';
-import i18n, {bootstrapI18n} from './src/i18n';
+import i18n, {bootstrapI18n, setAppLanguage} from './src/i18n';
 import {saveData} from './src/components/AsyncStorage';
+import {
+  splitAmisParams,
+  withAmisParams,
+  readAmisRouteParams,
+  isFromAmisApp,
+  toSaasLoginUrl,
+  normalizeLegacyMisaUrl,
+} from './src/components/amisDeepLink';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
@@ -38,6 +46,11 @@ function HomeScreen({
 }: NativeStackScreenProps<RootStackParamList, 'Home'>) {
   const [isConnected, setIsConnected] = useState(true);
   const [redirectFromLink, setRedirectFromLink] = useState('');
+  // tenantid do deep link AMIS mang sang — chỉ sống trong phiên, dùng để phát
+  // hiện người dùng được đưa sang tenant khác tenant đang đăng nhập.
+  const [redirectTenantId, setRedirectTenantId] = useState('');
+  // Phiên này có phải vào từ app AMIS không (để hiện nút quay lại AMIS).
+  const [fromAmis, setFromAmis] = useState(false);
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -52,28 +65,61 @@ function HomeScreen({
     return () => unsubscribe();
   }, []);
 
+  // AMIS có thể gắn sid/tenantid vào query của chính deep link thay vì nhúng
+  // trong URL đích. Rút ra thành chuỗi để dùng làm dependency ổn định cho
+  // useEffect (route.params là object mới sau mỗi lần render).
+  const linkUrl = route.params?.url ?? '';
+  const {
+    sid: routeSid,
+    tenantid: routeTenantId,
+    lang: routeLang,
+    userid: routeUserId,
+  } = readAmisRouteParams(route.params as Record<string, unknown> | undefined);
+
   useEffect(() => {
-    const url = route.params?.url;
-    if (url == null || url === '') {
+    if (linkUrl === '') {
       setRedirectFromLink('');
+      setRedirectTenantId('');
+      setFromAmis(false);
       return;
     }
-    let finalUrl = decodeURIComponent(url);
-    if (
-      finalUrl.startsWith('https://misajsc.amis.vn/lms') &&
-      !finalUrl.includes('auth/saas/index.php')
-    ) {
-      finalUrl = 'https://misajsc.amis.vn/lms/auth/saas/index.php';
+    const decoded = decodeURIComponent(linkUrl);
+    // Tách sid/tenantid/lang TRƯỚC khi chuẩn hoá đường dẫn: bước chuẩn hoá thay
+    // pathname, làm sau thì khó tách sạch lại.
+    const fromUrl = splitAmisParams(decoded);
+    // Ưu tiên giá trị nhúng trong URL đích; thiếu thì lấy từ query deep link.
+    const sid = fromUrl.sid || routeSid;
+    const tenantid = fromUrl.tenantid || routeTenantId;
+    const lang = fromUrl.lang || routeLang;
+    // userid: AMIS gửi kèm để dùng về sau, hiện app chỉ chuyển tiếp sang URL LMS
+    // chứ chưa xử lý gì thêm.
+    const userid = fromUrl.userid || routeUserId;
+    // Có sid ⇒ phải vào đúng điểm vào SaaS; wwwroot suy từ chính URL nên chạy
+    // được cả site cài ở gốc domain lẫn site nằm dưới sub-path như /lms.
+    // Không sid ⇒ giữ nguyên hành vi deep link cũ.
+    const baseUrl = sid
+      ? toSaasLoginUrl(fromUrl.cleanUrl)
+      : normalizeLegacyMisaUrl(fromUrl.cleanUrl);
+    // MMKV chỉ giữ URL sạch. sid/tenantid dùng một lần cho phiên này — lưu lại
+    // thì lần mở app sau sẽ POST bằng sid đã hết hạn và rớt về trang đăng nhập.
+    // lang cũng không lưu vào URL: ngôn ngữ được nhớ qua khoá app_locale.
+    saveData('url', baseUrl);
+    setRedirectFromLink(withAmisParams(baseUrl, {sid, tenantid, lang, userid}));
+    setRedirectTenantId(tenantid);
+    setFromAmis(isFromAmisApp({sid, tenantid, userid}));
+    // Đổi luôn ngôn ngữ app cho khớp, khỏi phải chờ web gửi ngược `synclang`.
+    if (lang) {
+      setAppLanguage(lang);
     }
-    setRedirectFromLink(finalUrl);
-    saveData('url', finalUrl);
-  }, [route.params?.url]);
+  }, [linkUrl, routeSid, routeTenantId, routeLang, routeUserId]);
 
   return (
     <View style={{flex: 1}}>
       {isConnected ? (
         <HomeView
           redirectUrl={redirectFromLink}
+          amisTenantId={redirectTenantId}
+          fromAmis={fromAmis}
           onClearRedirectUrl={() => setRedirectFromLink('')}
         />
       ) : (

@@ -8,13 +8,15 @@ import {URL,URLSearchParams} from 'react-native-url-polyfill';
 import {OneSignal} from 'react-native-onesignal';
 import {PERMISSIONS, request} from 'react-native-permissions';
 import {saveData,getData,deleteData} from '../components/AsyncStorage';
+import {AMIS_APP_SCHEME} from '../components/amisDeepLink';
 import ActionGridModal from '../components/ActionGridModal';
 import {
   StyleSheet,
   View,
   Keyboard,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Linking
 } from 'react-native';
 import Scanner from './Scanner';
 import WelcomePlaceholder from './WelcomePlaceholder';
@@ -80,6 +82,12 @@ class HomeView extends Component {
         super(props);
         this.webViewRef = React.createRef();
         this.scannerRef = React.createRef();
+        // tenant đang dùng + hàng đợi cho deep link tới trước khi đọc xong MMKV.
+        // Để ở instance thay vì state: componentDidMount hydrate bất đồng bộ, nếu
+        // dùng state thì lần setState của hydrate có thể ghi đè tenant vừa nhận.
+        this._tenantId = '';
+        this._tenantReady = false;
+        this._pendingTenantId = '';
         this.state = {
             url: "", // url của web lms
             keyBoard: false, // bàn phím bật hay tắt
@@ -201,6 +209,11 @@ class HomeView extends Component {
             this.handleTabPress(dashboard.url);
         }
     };
+    // Quay lại app AMIS. Chỉ gọi khi đã vào từ AMIS nên AMIS chắc chắn có trên
+    // máy — không cần canOpenURL, lỗi thì bỏ qua để không chặn người dùng.
+    returnToAmisApp = () => {
+        Linking.openURL(AMIS_APP_SCHEME).catch(() => {});
+    };
     // Nhận cấu hình navbar từ web (label đã dịch theo tenant) + cache lại
     setNavConfig = (navConfig) => {
         if (!navConfig || !Array.isArray(navConfig.items)) {
@@ -259,12 +272,13 @@ class HomeView extends Component {
         }
     };
     async componentDidMount() {
-        const [storedUrl, username, password, saas_userdata, navConfigRaw] = await Promise.all([
+        const [storedUrl, username, password, saas_userdata, navConfigRaw, storedTenantId] = await Promise.all([
             getData('url'),
             getData('username'),
             getData('password'),
             getData('saas_userdata'),
             getData('navConfig'),
+            getData('amis_tenantid'),
         ]);
         let cachedNavConfig = null;
         if (navConfigRaw) {
@@ -289,6 +303,14 @@ class HomeView extends Component {
             storageReady: true,
         });
 
+        this._tenantId = storedTenantId ?? '';
+        this._tenantReady = true;
+        if (this._pendingTenantId) {
+            const pending = this._pendingTenantId;
+            this._pendingTenantId = '';
+            this.applyAmisTenant(pending);
+        }
+
         this._keyboardShowSub = Keyboard.addListener('keyboardDidShow', () => {
             this.setState({keyBoard: true});
         });
@@ -298,28 +320,45 @@ class HomeView extends Component {
         this._setupOneSignal();
     }
 
-    setUrlDev = () => {
-        let url = 'your-url-when-developing';
-        let newurl = new URL(url);
-        let searchParams  = new URLSearchParams(newurl.search);
-        if(Validate.isUrlValid(url) && this.state.session) {
-            this.props.onClearRedirectUrl?.();
-            this.setState({url:url,scanQRCode:false})
-        } else if(Validate.isUrlValid(url) && (searchParams.get('applms') === 'true')) {
-            this.props.onClearRedirectUrl?.();
-            this.setState({url:url,scanQRCode:false})
-            saveData('url',url)
-        } else {
-            const {t} = this.props;
-            Alert.alert(t('alert.invalidUrlTitle'), t('alert.invalidUrlMessage'),[
-                {text: t('common.goBack'),onPress: () =>
-                    {
-                        this.setState({scanQRCode:false})
-                    }
-                },
-            ]);
+    componentDidUpdate(prevProps) {
+        const tenantId = this.props.amisTenantId;
+        if (!tenantId || tenantId === prevProps.amisTenantId) {
+            return;
         }
+        if (!this._tenantReady) {
+            // Deep link tới trước khi hydrate xong -> xử lý sau, tránh so sánh
+            // với tenant rỗng rồi bỏ qua bước dọn dẹp.
+            this._pendingTenantId = tenantId;
+            return;
+        }
+        this.applyAmisTenant(tenantId);
     }
+
+    // Deep link AMIS mang tenantid khác tenant đang đăng nhập ⇒ xoá dấu vết tenant
+    // cũ. Không xoá thì navConfig cũ vẫn dựng tab bar theo tenant trước (cùng
+    // origin nên guard theo origin trong buildTabItems không bắt được), và
+    // saas_userdata cũ có thể đăng nhập nhầm về tenant trước nếu sid lỗi.
+    applyAmisTenant = tenantId => {
+        if (this._tenantId === tenantId) {
+            return;
+        }
+        if (this._tenantId) {
+            deleteData('username');
+            deleteData('password');
+            deleteData('saas_userdata');
+            deleteData('navConfig');
+            this.setState({
+                username: '',
+                password: '',
+                saas_userdata: '',
+                navConfig: null,
+                session: '',
+            });
+        }
+        this._tenantId = tenantId;
+        saveData('amis_tenantid', tenantId);
+    };
+
     // Nhập link thủ công từ màn Welcome: validate định dạng, rồi GỌI ENDPOINT XÁC
     // THỰC trên chính site người dùng nhập để chắc chắn đây là site LMS hợp lệ.
     // Endpoint trả về wwwroot (đường dẫn gốc chuẩn, đã gồm sub-path như /lms nếu có)
@@ -328,8 +367,7 @@ class HomeView extends Component {
     handleSubmitManualUrl = async (rawInput) => {
         const {t} = this.props;
         const raw = (rawInput || '').trim();
-        // Ô nhập chấp nhận CẢ link lẫn "mã" (base64 giải ra link). Ưu tiên coi là
-        // link; nếu không phải link thì thử giải mã base64 để ra link.
+        // Ô nhập chấp nhận CẢ link lẫn "mã" (base64 giải ra link). Ưu tiên coi là link; nếu không phải link thì thử giải mã base64 để ra link.
         let input = raw;
         if (!Validate.isUrlValid(input)) {
             const decoded = base64ToText(raw).trim();
@@ -376,18 +414,12 @@ class HomeView extends Component {
         const loginUrl = wwwroot.replace(/\/+$/, '') + '/login/index.php?applms=true';
         this.props.onClearRedirectUrl?.();
         saveData('url', loginUrl);
-        // Lưu chuỗi NGƯỜI DÙNG NHẬP (raw: mã hoặc link) để điền lại ô input khi quay
-        // về Welcome — không lộ link đã giải mã.
         this.setState({url: loginUrl, scanQRCode: false, welcomeInitialUrl: raw});
         return true;
     }
-    // Quay lại màn Welcome khi đã mở URL nhưng CHƯA đăng nhập (chưa có session từ
-    // web). Xoá URL đang mở để render lại WelcomePlaceholder, đồng thời điền sẵn
-    // (patch) lại đường dẫn người dùng đã nhập/lưu vào ô input để thao tác lại.
+    // Quay lại màn Welcome khi đã mở URL nhưng CHƯA đăng nhập
     backToWelcome = () => {
         const current = this.props.redirectUrl || this.state.url || '';
-        // Ưu tiên đúng chuỗi người dùng đã nhập (lưu ở welcomeInitialUrl khi submit);
-        // nếu chưa có (vd vào bằng QR) thì fallback lấy origin của URL đang mở.
         let prefill = this.state.welcomeInitialUrl;
         if (!prefill) {
             try {
@@ -407,12 +439,23 @@ class HomeView extends Component {
     }
     render() {
         const {t} = this.props;
+        const canReturnToAmis = Boolean(this.props.fromAmis && AMIS_APP_SCHEME);
         const dataMenu = [
             { icon: 'qrcode', title: t('menu.scanQr'), onPress: () => this.setState({
                 scanQRCode:true,
                 scanAtt:true,
                 isMenuOpen:false,
             })},
+            // TODO: thay icon tạm 'external-link-alt' bằng ảnh AMIS khi có —
+            // ActionGridModal nhận { icon: require('../assets/amis.png'), isImage: true }
+            ...(canReturnToAmis ? [{
+                icon: 'external-link-alt',
+                title: t('menu.backToAmis'),
+                onPress: () => {
+                    this.setState({isMenuOpen:false});
+                    this.returnToAmisApp();
+                },
+            }] : []),
             { icon: 'sign-out-alt', title: t('menu.logout'), onPress: () => Alert.alert(
                 t('logout.confirmTitle'),
                 t('logout.confirmMessage'),
@@ -437,6 +480,10 @@ class HomeView extends Component {
                         deleteData('password');
                         deleteData('saas_userdata');
                         deleteData('navConfig');
+                        // Quên luôn tenant đang gắn, để deep link AMIS lần sau
+                        // (kể cả cùng tenant) được coi là phiên mới.
+                        deleteData('amis_tenantid');
+                        this._tenantId = '';
                     }},
                 ]
             )
@@ -446,12 +493,10 @@ class HomeView extends Component {
         const hasWebUrl = webUrl.length > 0;
         let leftIconName = null;
         if (this.state.session) {
-            // Hiện nút back ở mọi trang, TRỪ trang gốc /my/ (dashboard) thì ẩn.
             if (!this.state.scanQRCode && this.state.currentUrl.indexOf('/my/') === -1) {
                 leftIconName = 'angle-left';
             }
         } else if (!this.state.scanQRCode && hasWebUrl) {
-            // Đã mở URL nhưng CHƯA đăng nhập (chưa có session từ web): hiện nút về màn Welcome để nhập lại đường dẫn hoặc quét QR
             leftIconName = 'home';
         }
         const isLoggedIn =
@@ -483,10 +528,7 @@ class HomeView extends Component {
                         if(this.state.session) {
                             this.handleGoBack()
                         } else {
-                            // Chưa đăng nhập: quay lại màn Welcome để nhập lại / quét QR.
                             this.backToWelcome()
-                            // uncomment this to use dev url
-                            // this.setUrlDev()
                         }
                     }}
                 />

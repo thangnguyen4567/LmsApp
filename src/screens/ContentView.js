@@ -3,6 +3,7 @@ import { withTranslation } from 'react-i18next';
 import { WebView } from 'react-native-webview';
 import { URL } from 'react-native-url-polyfill';
 import { saveData } from '../components/AsyncStorage';
+import { hasAmisSid } from '../components/amisDeepLink';
 import {
   StyleSheet,
   View,
@@ -291,17 +292,6 @@ class ContentView extends Component {
                 this.setState({ downloading: false });
             }
         };
-        const getBody = () => {
-            let param = 'fromapp=1';
-            if(this.props.username && this.props.password) {
-                param +='&username='+this.props.username+'&password='+this.props.password;
-            } 
-            if(this.props.saas_userdata) {
-                // Xử lý truyền thông tin user saas
-                param += '&user_saas='+encodeURIComponent(this.props.saas_userdata)
-            } 
-            return param;
-        }
         const loadUrl = this.state.webview
             ? this.state.webview
             : this.props.url;
@@ -319,6 +309,33 @@ class ContentView extends Component {
             }
             this._sourceUri = nextUrl.toString();
         }
+        // URL mang sid (vào từ deep link AMIS) ⇒ sid LÀ danh tính của request này.
+        const requestHasSid = hasAmisSid(this._sourceUri);
+        // Danh sách field của body POST. Dùng CHUNG cho Android (getBody) và iOS
+        // (buildAutoPostHtml): hai nền tảng phải gửi y hệt nhau, tách thành 2 bản
+        // logic thì sớm muộn cũng lệch — mà lệch kiểu này không văng lỗi, chỉ là
+        // đăng nhập không vào.
+        const buildAuthFields = () => {
+            if (requestHasSid) {
+                // Có sid: KHÔNG kèm username/password/user_saas. Không trộn hai
+                // nguồn danh tính trong cùng một request.
+                return [['fromapp', '1']];
+            }
+            const fields = [['fromapp', '1']];
+            if (this.props.username && this.props.password) {
+                fields.push(['username', this.props.username]);
+                fields.push(['password', this.props.password]);
+            }
+            if (this.props.saas_userdata) {
+                // Xử lý truyền thông tin user saas
+                fields.push(['user_saas', this.props.saas_userdata]);
+            }
+            return fields;
+        };
+        const getBody = () =>
+            buildAuthFields()
+                .map(([name, value]) => name + '=' + encodeURIComponent(value))
+                .join('&');
         // iOS: WKWebView.loadRequest BỎ HTTP body của POST (giới hạn của WebKit) → nạp source POST kiểu Android sẽ mất username/password ⇒ mở lại app không auto-login, hiện lại trang login.
         const htmlEscape = s => {
             const str = s === undefined || s === null ? '' : String(s);
@@ -330,15 +347,7 @@ class ContentView extends Component {
         };
         const buildAutoPostHtml = actionUrl => {
             // Cùng bộ field với getBody() để giữ nguyên contract đăng nhập với backend.
-            const fields = [['fromapp', '1']];
-            if (this.props.username && this.props.password) {
-                fields.push(['username', this.props.username]);
-                fields.push(['password', this.props.password]);
-            }
-            if (this.props.saas_userdata) {
-                fields.push(['user_saas', this.props.saas_userdata]);
-            }
-            const inputs = fields
+            const inputs = buildAuthFields()
                 .map(
                     ([name, value]) =>
                         `<input type="hidden" name="${htmlEscape(name)}" value="${htmlEscape(value)}">`,
