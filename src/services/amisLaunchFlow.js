@@ -61,16 +61,17 @@ export function decideLaunchAction(input = {}) {
         return {action: LAUNCH_ACTION.WELCOME, reason: 'khong-do-duoc-amis'};
     }
 
-    // ⏸️ (3) TẠM TẮT THEO YÊU CẦU — backoff chống ping-pong giữa hai app.
+    // ⏸️ (3) BACKOFF ĐANG TẮT — **quyết định nghiệp vụ đã chốt**, không phải nợ.
     //
-    // Giai đoạn vừa làm vừa test: thất bại một lần rồi phải chờ 24h mới được
-    // tự động thử lại là quá vướng. Tắt đi thì cứ mở app là chạy lại từ đầu.
+    // Chốt: máy trắng thông tin mà có AMIS thì **mỗi lần mở app đều sang AMIS**.
+    // Nghĩa là bỏ luôn chốt chặn "vừa thất bại thì 24h sau mới tự thử lại".
     //
-    // ⚠️ BẬT LẠI TRƯỚC KHI PHÁT HÀNH. Thiếu chốt này thì: xin token thất bại →
-    // người dùng mở lại app → gửi tiếp → thất bại → ... ping-pong vô hạn giữa
-    // AMIS và LMS, người dùng không thoát ra được.
+    // Cái đánh đổi đã được chấp nhận: xin quyền thất bại → mở lại app → gửi
+    // tiếp → ... Không thành bẫy chết vì người dùng vẫn ra được: rời AMIS là
+    // app thôi chờ ngay (xem useAmisLogin, effect AppState), rơi về màn Welcome
+    // và nhập mã cấu hình tay được — chỉ lần mở app SAU mới lại sang AMIS.
     //
-    // Hạ tầng vẫn còn nguyên, bật lại chỉ cần bỏ comment 3 chỗ:
+    // Hạ tầng còn nguyên, bật lại chỉ cần bỏ comment 3 chỗ:
     //   1. khối dưới đây
     //   2. `canAutoRequest` ở phần destructure đầu hàm + trong @param
     //   3. lời gọi `shouldAutoRequestToken()` trong useAmisLogin.js

@@ -45,14 +45,30 @@ export const AMIS_APP = {
     // getPackageInfo() luôn báo "chưa cài" dù máy có AMIS.
     androidPackage: 'vn.com.misa.amis',
 
-    // Đường dẫn mở lại app AMIS (nút "AMIS" trong menu). Bỏ trống ⇒ mở màn mặc định.
-    returnPath: '',
+    // Giá trị nhận diện bên gọi (bảng phối hợp dòng 5: "VNR tự quy định cấu trúc
+    // deeplink bắn về AMIS để AMIS nhận biết được là từ VNR bắn sang").
+    source: 'ailearning',
 
-    // Bảng phối hợp dòng 5: "VNR tự quy định cấu trúc deeplink bắn về AMIS để
-    // AMIS nhận biết được là từ VNR bắn sang".
-    // ⚠️ Đã quy định là `source=ailearning` — PHẢI báo lại MISA để bên họ đọc
-    // đúng tham số này, nếu không AMIS sẽ không phân biệt được nguồn gọi.
-    returnParams: {source: 'ailearning'},
+    /**
+     * Đường dẫn mở lại app AMIS — nút "Quay về AMIS" trong menu.
+     *
+     * ✅ ĐÃ CHỐT VỚI MISA, và **hai nền tảng khác nhau**:
+     *     iOS     -> misa.amis.vn://          (không path)
+     *     Android -> https://misajsc.amis.vn/lms
+     *
+     * Đừng gộp thành một giá trị: bên iOS mở màn mặc định của AMIS, bên Android
+     * phải trúng '/lms' mới khớp App Link của họ.
+     */
+    returnPath: {ios: '', android: 'lms'},
+
+    /**
+     * Tham số kèm theo link quay về.
+     *
+     * ✅ ĐÃ CHỐT: **rỗng**. Bản trao đổi trước có `?source=ailearning`, nhưng
+     * chuỗi cuối MISA gửi lại không có query — giữ nguyên rỗng cho khớp. Để
+     * trống là cơ chế vẫn còn, MISA cần thì điền lại chỗ này, không phải sửa code.
+     */
+    returnParams: {},
 };
 
 /**
@@ -68,30 +84,51 @@ export const AMIS_DETECT = {
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
- * 2. DEEP LINK LMS → AMIS ĐỂ XIN TOKEN — CHỜ MISA (spec §9.1 mục ⑤⑦)
+ * 2. DEEP LINK LMS → AMIS ĐỂ XIN QUYỀN — ✅ ĐÃ CHỐT VỚI MISA
  *
- * docs/AMIS-LMS.docx gợi ý dạng `amis://get-token`, nhưng tên tham số thì chưa
- * có. Giữ nguyên tên mặc định kiểu OAuth ở dưới cho tới khi MISA chốt.
+ * Chuỗi cuối cùng hai bên thống nhất:
+ *     iOS     -> misa.amis.vn://lms?source=ailearning
+ *     Android -> https://misajsc.amis.vn/lms?source=ailearning
+ *
+ * ⚠️ **KHÔNG truyền gì khác** — không `redirect_uri`, không `state`, không
+ * `client_id`, không `lang`. AMIS biết đường gọi về nhờ chuỗi callback ta công
+ * bố sẵn (mục 3), chứ không nhận qua tham số.
+ *
+ * Hệ quả của việc không có `state`:
+ * - `buildGetTokenUrl` bỏ qua mọi tên tham số để rỗng ⇒ URL sạch.
+ * - Bước đối chiếu `state` khi callback về **tự tắt** (useAmisLogin chỉ đòi khi
+ *   `params.state` khác rỗng). Nghĩa là mất lớp chống callback lặp/giả mạo —
+ *   đây là quyết định của MISA, đã ghi vào docs/tasks-… phần "Nợ".
+ * - MISA cần `state` trở lại: điền `state: 'state'` là chạy lại nguyên vẹn,
+ *   không phải sửa dòng code nào.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 export const AMIS_GETTOKEN = {
-    // Phần đứng sau '<scheme>://'. Vd 'get-token' ⇒ 'amis://get-token?...'
-    path: 'get-token',
+    // Phần đứng sau gốc URL. Cả hai nền tảng đều là 'lms'.
+    path: 'lms',
 
-    // Tên tham số app LMS gửi sang AMIS. Đặt giá trị '' để KHÔNG gửi tham số đó.
+    // Tên tham số app LMS gửi sang AMIS. Đặt '' để KHÔNG gửi tham số đó.
     params: {
-        redirectUri: 'redirect_uri', // nơi AMIS gọi ngược về (xem mục 3)
-        state: 'state', // chuỗi ngẫu nhiên chống giả mạo callback
-        clientId: 'client_id', // chỉ gửi khi `clientId` bên dưới khác rỗng
-        lang: 'lang', // ngôn ngữ app LMS đang dùng, để AMIS hiện popup đúng tiếng
+        source: 'source', // giá trị lấy từ AMIS_APP.source — thứ DUY NHẤT được gửi
+        redirectUri: '', // ⛔ MISA không nhận
+        state: '', // ⛔ MISA không nhận ⇒ tắt luôn bước đối chiếu state
+        clientId: '', // ⛔ MISA không nhận
+        lang: '', // ⛔ MISA không nhận
     },
 
-    // Khoá định danh bên gọi, nếu AMIS yêu cầu (spec §9.1 mục ⑦).
+    // Khoá định danh bên gọi, nếu sau này AMIS yêu cầu (spec §9.1 mục ⑦).
     clientId: '',
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
- * 3. CALLBACK AMIS → LMS — CHỜ MISA XÁC NHẬN TÊN THAM SỐ (spec §9.1 mục ⑥)
+ * 3. CALLBACK AMIS → LMS — ✅ VNR ĐỊNH NGHĨA, ĐÃ GỬI MISA (spec §9.1 mục ⑥)
+ *
+ * Chuỗi chính thức AMIS gọi để trả dữ liệu về app LMS:
+ *
+ *     vnrlms://applms/amis-callback?tenantid=<...>&userid=<...>&sid=<...>
+ *
+ * Thứ tự tham số không quan trọng, tên tham số đọc KHÔNG phân biệt hoa thường.
+ * Thiếu `tenantid` là hỏng: đó là khoá duy nhất để hỏi trang QL ra URL site LMS.
  *
  * Phía LMS đã sẵn sàng: intent-filter Android (scheme `vnrlms`, host `applms`)
  * và `CFBundleURLSchemes` iOS đều KHÔNG giới hạn path, nên `amis-callback` chạy
@@ -195,6 +232,26 @@ export const AMIS_MOCK = {
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * 5b. GỠ LỖI TẠM THỜI — 🚧 PHẢI TẮT TRƯỚC KHI RELEASE
+ *
+ * Chưa có endpoint trang QL (mục 4) nên chưa đổi được `tenantid` ra URL site.
+ * Trong lúc đó vẫn cần thấy AMIS trả về đúng những gì đã hẹn ⇒ hiện thẳng bộ
+ * tham số callback ra Alert.
+ *
+ * Cố tình KHÔNG khoá bằng `__DEV__`: cần bật được cả trên bản build ký thật
+ * gửi MISA test. Bù lại phải nhớ tắt tay — có ghi ở docs/tasks-…
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export const AMIS_DEBUG = {
+    // Hiện Alert với toàn bộ tham số AMIS gửi về (kể cả khi rỗng hoặc lỗi).
+    alertCallbackParams: true,
+
+    // Bấm OK ở Alert xong thì DỪNG, không đi tiếp bước gọi trang QL.
+    // Để `false` là chạy tiếp vào mock (mục 5) / endpoint thật (mục 4).
+    stopAfterAlert: true,
+};
+
+/* ────────────────────────────────────────────────────────────────────────────
  * 6. THỜI GIAN & KHOÁ LƯU TRỮ
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -215,9 +272,11 @@ export const AMIS_TIMING = {
     // onNewIntent → onResume) nên khoảng đệm ngắn là đủ. Để dài hơn thì người
     // dùng phải nhìn spinner vô ích, ngắn quá thì rủi ro huỷ nhầm.
     returnGraceMs: 1200,
-    // Thất bại rồi thì bao lâu nữa mới TỰ ĐỘNG thử lại. Không có backoff thì
-    // thất bại → mở lại app → gửi tiếp → ping-pong vô hạn giữa hai app.
-    // Người dùng bấm nút "Đăng nhập bằng AMIS" thì bỏ qua backoff này.
+    // ⏸️ HIỆN KHÔNG DÙNG. Thất bại rồi thì bao lâu nữa mới TỰ ĐỘNG thử lại.
+    //
+    // Nghiệp vụ đã chốt: máy trắng thông tin mà có AMIS thì **mỗi lần mở app đều
+    // sang AMIS**, không chặn lại. Giá trị dưới đây và `shouldAutoRequestToken()`
+    // giữ nguyên để bật lại được — xem amisLaunchFlow.js#decideLaunchAction (3).
     retryBackoffMs: 24 * 60 * 60 * 1000,
 };
 
@@ -323,11 +382,25 @@ export function canDetectAmisInstalled() {
 }
 
 /**
- * URL mở lại app AMIS (nút "AMIS" trong menu), kèm tham số nhận diện nguồn gọi.
+ * Đường dẫn quay về AMIS của nền tảng hiện tại.
+ * MISA chốt hai chuỗi khác nhau: iOS không path, Android phải là '/lms'.
+ */
+export function getAmisReturnPath() {
+    const paths = AMIS_APP.returnPath || {};
+    return (Platform.OS === 'android' ? paths.android : paths.ios) || '';
+}
+
+/**
+ * URL mở lại app AMIS (nút "Quay về AMIS" trong menu).
+ *
+ * Chuỗi chốt với MISA:
+ *     iOS     -> misa.amis.vn://
+ *     Android -> https://misajsc.amis.vn/lms
+ *
  * Trả '' khi chưa cấu hình ⇒ nút tự ẩn, không hiện nút bấm vào không có gì xảy ra.
  */
 export function getAmisReturnUrl() {
-    const base = joinAmisUrl(AMIS_APP.returnPath || '');
+    const base = joinAmisUrl(getAmisReturnPath());
     if (!base) {
         return '';
     }
@@ -347,7 +420,10 @@ export function getAmisReturnUrl() {
     return base + (base.indexOf('?') > -1 ? '&' : '?') + query;
 }
 
-/** URL callback app LMS đưa cho AMIS gọi ngược. */
+/**
+ * URL callback app LMS công bố cho AMIS gọi ngược.
+ * Đây là chuỗi phải gửi cho MISA — AMIS ghép thêm `?tenantid=…&userid=…&sid=…`.
+ */
 export function getCallbackUrl() {
     return (
         AMIS_CALLBACK.scheme +
@@ -359,11 +435,22 @@ export function getCallbackUrl() {
 }
 
 /**
- * Tra được token key chưa: hoặc có endpoint thật, hoặc đang bật mock.
- * Tách riêng khỏi `isAmisConfigured()` vì hai bên chặn nhau ở hai khâu khác
- * nhau — thiếu scheme là không mở được AMIS, thiếu endpoint là mở được nhưng
- * cầm token về rồi không biết hỏi ai.
+ * Cầm `tenantid` về rồi thì có chỗ nào hỏi ra URL site LMS không.
+ *
+ * Tách riêng khỏi `isAmisConfigured()` vì hai bên chặn ở hai khâu khác nhau —
+ * thiếu scheme là không mở được AMIS, thiếu endpoint là mở được nhưng cầm
+ * `tenantid` về rồi không biết hỏi ai.
+ *
+ * Ba đường được tính là "có chỗ hỏi": endpoint thật, mock, và chế độ gỡ lỗi
+ * hiện Alert. Nhắc riêng về cái thứ ba: nó là điều kiện để bản build **release**
+ * (không có `__DEV__`, chưa có endpoint) vẫn mở được AMIS mà đi hết vòng
+ * callback — thiếu nó thì `startAmisLogin` chặn ngay từ đầu và không bao giờ
+ * thấy Alert.
  */
 export function isTenantLookupConfigured() {
-    return Boolean(VNR_TENANT_LOOKUP.url) || AMIS_MOCK.enabled;
+    return (
+        Boolean(VNR_TENANT_LOOKUP.url) ||
+        AMIS_MOCK.enabled ||
+        AMIS_DEBUG.alertCallbackParams
+    );
 }

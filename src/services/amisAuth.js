@@ -181,11 +181,17 @@ const appendParam = (parts, name, value) => {
 };
 
 /**
- * Dựng URL deep link gọi sang AMIS. Thuần — không đụng Linking, để test được.
- * Trả '' khi chưa cấu hình gốc URL AMIS.
+ * Dựng URL deep link gọi sang AMIS xin quyền. Thuần — không đụng Linking.
  *
- * Gốc URL khác nhau theo nền tảng (`misa.amis.vn://` vs
- * `https://misajsc.amis.vn`) nên đi qua `joinAmisUrl` chứ không tự ghép chuỗi.
+ * Chuỗi chốt với MISA:
+ *     iOS     -> misa.amis.vn://lms?source=ailearning
+ *     Android -> https://misajsc.amis.vn/lms?source=ailearning
+ *
+ * Gốc URL khác nhau theo nền tảng nên đi qua `joinAmisUrl` chứ không tự ghép
+ * chuỗi. Tham số nào có tên rỗng trong `AMIS_GETTOKEN.params` thì tự bị bỏ —
+ * hiện MISA chỉ nhận `source`, phần còn lại nằm đó cho tương lai.
+ *
+ * Trả '' khi chưa cấu hình gốc URL AMIS.
  */
 export function buildGetTokenUrl({state = '', lang = ''} = {}) {
     const base = joinAmisUrl(AMIS_GETTOKEN.path || '');
@@ -194,6 +200,7 @@ export function buildGetTokenUrl({state = '', lang = ''} = {}) {
     }
     const names = AMIS_GETTOKEN.params || {};
     const parts = [];
+    appendParam(parts, names.source, AMIS_APP.source);
     appendParam(parts, names.redirectUri, getCallbackUrl());
     appendParam(parts, names.state, state);
     appendParam(parts, names.clientId, AMIS_GETTOKEN.clientId);
@@ -202,7 +209,7 @@ export function buildGetTokenUrl({state = '', lang = ''} = {}) {
 }
 
 /**
- * Mở app AMIS để xin token key.
+ * Mở app AMIS để xin quyền.
  * Ghi mốc thời gian thử để lần khởi động sau không tự động gửi lại ngay
  * (chống ping-pong giữa hai app) — xem `shouldAutoRequestToken`.
  */
@@ -210,8 +217,14 @@ export async function requestTokenKey({lang = ''} = {}) {
     if (!isAmisConfigured()) {
         return {ok: false, error: LOOKUP_ERROR.CONFIG};
     }
-    const state = generateState();
-    await rememberState(state);
+    // MISA không nhận `state` (xem amisConfig mục 2) ⇒ không sinh, không lưu.
+    // Sinh rồi bỏ đó thì lần sau còn `state` cũ trong MMKV, mà bên nhận lại
+    // không đối chiếu — vừa vô ích vừa gây hiểu nhầm khi đọc storage lúc debug.
+    const sendsState = Boolean(AMIS_GETTOKEN.params?.state);
+    const state = sendsState ? generateState() : '';
+    if (sendsState) {
+        await rememberState(state);
+    }
     await saveData(AMIS_KEYS.attemptedAt, String(Date.now()));
     const url = buildGetTokenUrl({state, lang});
     const opened = await openAmisUrl(url);

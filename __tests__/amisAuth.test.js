@@ -28,16 +28,19 @@ jest.mock('../src/components/AsyncStorage', () => ({
 
 const {
     AMIS_APP,
+    AMIS_DEBUG,
     AMIS_DETECT,
     AMIS_KEYS,
     AMIS_MOCK,
     AMIS_TIMING,
     LOOKUP_ERROR,
+    VNR_TENANT_LOOKUP,
     canDetectAmisInstalled,
     getAmisBaseUrl,
     getAmisReturnUrl,
     getCallbackUrl,
     isAmisConfigured,
+    isTenantLookupConfigured,
     joinAmisUrl,
     shouldShowAmisLoginButton,
 } = require('../src/services/amisConfig');
@@ -58,6 +61,7 @@ const {
     normalizeLookupError,
     parseAmisLink,
     rememberState,
+    requestTokenKey,
     shouldAutoRequestToken,
     verifyState,
 } = require('../src/services/amisAuth');
@@ -72,14 +76,15 @@ const {
 const REAL = {
     scheme: AMIS_APP.scheme,
     androidUrl: AMIS_APP.androidUrl,
+    returnPath: {...AMIS_APP.returnPath},
 };
 
 beforeEach(() => {
     Object.keys(mockStore).forEach(key => delete mockStore[key]);
     AMIS_APP.scheme = REAL.scheme;
     AMIS_APP.androidUrl = REAL.androidUrl;
+    AMIS_APP.returnPath = {...REAL.returnPath};
     AMIS_APP.schemeTest = '';
-    AMIS_APP.returnPath = '';
     AMIS_MOCK.failWith = '';
     AMIS_MOCK.delayMs = 0;
 });
@@ -97,18 +102,13 @@ describe('amisConfig — thông tin production MISA đã cấp', () => {
         expect(AMIS_APP.androidPackage).toBe('vn.com.misa.amis');
     });
 
-    test('nút quay về AMIS mang tham số nhận diện nguồn gọi là VNR', () => {
-        // Bảng phối hợp dòng 5: "VNR tự quy định cấu trúc deeplink bắn về AMIS".
-        expect(getAmisReturnUrl()).toBe('misa.amis.vn://?source=ailearning');
-    });
-
     test('có returnPath thì mở đúng màn AMIS chỉ định', () => {
-        AMIS_APP.returnPath = 'home';
-        expect(getAmisReturnUrl()).toBe('misa.amis.vn://home?source=ailearning');
+        AMIS_APP.returnPath = {ios: 'home', android: 'home'};
+        expect(getAmisReturnUrl()).toBe('misa.amis.vn://home');
     });
 
     test('joinAmisUrl xử lý đúng dấu / cho cả hai dạng gốc URL', () => {
-        expect(joinAmisUrl('get-token')).toBe('misa.amis.vn://get-token');
+        expect(joinAmisUrl('lms')).toBe('misa.amis.vn://lms');
         expect(joinAmisUrl('')).toBe('misa.amis.vn://');
     });
 
@@ -116,28 +116,43 @@ describe('amisConfig — thông tin production MISA đã cấp', () => {
         expect(canDetectAmisInstalled()).toBe(true);
     });
 
-    // Chuỗi chính xác app LMS bắn sang AMIS — đây là thứ đã gửi cho MISA nên
-    // khoá lại, đổi mà quên báo là hai bên lệch nhau ngay.
-    test('deep link quay về AMIS — chuỗi chốt của cả hai nền tảng', () => {
+    /**
+     * 🔒 BA CHUỖI CHỐT với MISA. Khoá lại từng ký tự: đổi mà quên báo bên họ là
+     * hai app lệch nhau, mà biểu hiện chỉ là "bấm không thấy gì xảy ra" — không
+     * có exception nào để lần ra.
+     */
+    describe('chuỗi deep link đã chốt với MISA', () => {
         const {Platform} = require('react-native');
         const realOS = Platform.OS;
-        try {
+        afterEach(() => {
+            Platform.OS = realOS;
+        });
+
+        test('① LMS xin quyền: có source, KHÔNG có gì khác', () => {
             Platform.OS = 'ios';
-            expect(getAmisReturnUrl()).toBe('misa.amis.vn://?source=ailearning');
+            expect(buildGetTokenUrl()).toBe(
+                'misa.amis.vn://lms?source=ailearning',
+            );
 
             Platform.OS = 'android';
-            expect(getAmisReturnUrl()).toBe(
-                'https://misajsc.amis.vn/?source=ailearning',
+            expect(buildGetTokenUrl()).toBe(
+                'https://misajsc.amis.vn/lms?source=ailearning',
             );
             // Android còn khoá intent vào đúng package AMIS, xem AmisDetectModule.kt
             expect(AMIS_APP.androidPackage).toBe('vn.com.misa.amis');
-        } finally {
-            Platform.OS = realOS;
-        }
-    });
+        });
 
-    test('URL callback đưa cho MISA đúng cấu trúc đã công bố', () => {
-        expect(getCallbackUrl()).toBe('vnrlms://applms/amis-callback');
+        test('② AMIS gọi về LMS', () => {
+            expect(getCallbackUrl()).toBe('vnrlms://applms/amis-callback');
+        });
+
+        test('③ LMS quay về AMIS — iOS không path, Android phải /lms', () => {
+            Platform.OS = 'ios';
+            expect(getAmisReturnUrl()).toBe('misa.amis.vn://');
+
+            Platform.OS = 'android';
+            expect(getAmisReturnUrl()).toBe('https://misajsc.amis.vn/lms');
+        });
     });
 });
 
@@ -199,7 +214,7 @@ describe('amisConfig — trạng thái CHƯA điền thông tin', () => {
     test('chỉ có bản test thì vẫn dùng được', () => {
         AMIS_APP.schemeTest = 'amistest';
         expect(isAmisConfigured()).toBe(true);
-        expect(getAmisReturnUrl()).toBe('amistest://?source=ailearning');
+        expect(getAmisReturnUrl()).toBe('amistest://');
     });
 });
 
@@ -208,26 +223,42 @@ describe('buildGetTokenUrl', () => {
         AMIS_APP.scheme = 'amis';
     });
 
-    test('ghép đủ redirect_uri + state, encode đúng', () => {
-        const url = buildGetTokenUrl({state: 'STATE123'});
-        expect(url.indexOf('amis://get-token?')).toBe(0);
-        expect(url).toContain(
-            'redirect_uri=' +
-                encodeURIComponent('vnrlms://applms/amis-callback'),
-        );
-        expect(url).toContain('state=STATE123');
+    /**
+     * MISA chốt: chỉ nhận `source`. Bốn tham số kiểu OAuth còn lại vẫn có chỗ
+     * trong config nhưng để tên rỗng — các test dưới khoá đúng điều đó, để lỡ ai
+     * điền lại một cái vì tưởng là thiếu thì biết ngay là sai hợp đồng.
+     */
+    test('KHÔNG gửi redirect_uri (AMIS không nhận qua tham số)', () => {
+        expect(buildGetTokenUrl()).not.toContain('redirect_uri');
+        // Đường về vẫn phải công bố được — chỉ là gửi cho MISA bằng tài liệu.
+        expect(getCallbackUrl()).toBe('vnrlms://applms/amis-callback');
     });
 
-    test('không truyền lang thì không kèm tham số rỗng', () => {
-        expect(buildGetTokenUrl({state: 'S'})).not.toContain('lang=');
+    test('KHÔNG gửi state, dù bên gọi có truyền vào', () => {
+        expect(buildGetTokenUrl({state: 'STATE123'})).not.toContain('state');
     });
 
-    test('có lang thì gửi kèm để AMIS hiện popup đúng tiếng', () => {
-        expect(buildGetTokenUrl({state: 'S', lang: 'vi'})).toContain('lang=vi');
+    test('KHÔNG gửi lang và client_id', () => {
+        const url = buildGetTokenUrl({state: 'S', lang: 'vi'});
+        expect(url).not.toContain('lang=');
+        expect(url).not.toContain('client_id=');
     });
 
-    test('chưa được MISA cấp client_id thì không gửi tham số rỗng', () => {
-        expect(buildGetTokenUrl({state: 'S'})).not.toContain('client_id=');
+    test('MISA đổi ý thì điền lại tên tham số là chạy, không sửa code', () => {
+        const {AMIS_GETTOKEN} = require('../src/services/amisConfig');
+        const real = {...AMIS_GETTOKEN.params};
+        try {
+            AMIS_GETTOKEN.params.state = 'state';
+            AMIS_GETTOKEN.params.redirectUri = 'redirect_uri';
+            const url = buildGetTokenUrl({state: 'STATE123'});
+            expect(url).toContain('state=STATE123');
+            expect(url).toContain(
+                'redirect_uri=' +
+                    encodeURIComponent('vnrlms://applms/amis-callback'),
+            );
+        } finally {
+            AMIS_GETTOKEN.params = real;
+        }
     });
 });
 
@@ -348,6 +379,46 @@ describe('classifyCallbackError / normalizeLookupError', () => {
     });
 });
 
+describe('requestTokenKey — mở AMIS xin quyền', () => {
+    test('gửi đúng chuỗi đã chốt, KHÔNG sinh state vô ích', async () => {
+        const res = await requestTokenKey({lang: 'vi'});
+        expect(res.ok).toBe(true);
+        expect(res.url).toBe('misa.amis.vn://lms?source=ailearning');
+        // MISA không đối chiếu state ⇒ sinh rồi để đó chỉ làm rác storage và
+        // gây hiểu nhầm cho người đọc MMKV lúc gỡ lỗi.
+        expect(mockStore[AMIS_KEYS.state]).toBeUndefined();
+        expect(mockStore[AMIS_KEYS.stateAt]).toBeUndefined();
+        // Mốc thời gian thử thì vẫn phải ghi — backoff dựa vào nó khi bật lại.
+        expect(mockStore[AMIS_KEYS.attemptedAt]).toBeTruthy();
+    });
+});
+
+/**
+ * 🚧 Cờ gỡ lỗi (amisConfig mục 5b). Test ở đây không phải để khoá giá trị `true`
+ * — nó sẽ được tắt khi có endpoint — mà để khoá HỆ QUẢ: bật Alert phải đủ điều
+ * kiện cho `startAmisLogin` mở AMIS, nếu không thì không bao giờ thấy Alert.
+ */
+describe('cờ gỡ lỗi tạm thời', () => {
+    test('bật Alert là đủ điều kiện mở AMIS dù chưa có endpoint trang QL', () => {
+        const realMock = AMIS_MOCK.enabled;
+        const realAlert = AMIS_DEBUG.alertCallbackParams;
+        try {
+            AMIS_MOCK.enabled = false;
+            expect(VNR_TENANT_LOOKUP.url).toBe(''); // vẫn đang chờ BE
+
+            AMIS_DEBUG.alertCallbackParams = true;
+            expect(isTenantLookupConfigured()).toBe(true);
+
+            // Tắt cả ba đường thì phải chặn từ đầu, không mở AMIS rồi mắc kẹt.
+            AMIS_DEBUG.alertCallbackParams = false;
+            expect(isTenantLookupConfigured()).toBe(false);
+        } finally {
+            AMIS_MOCK.enabled = realMock;
+            AMIS_DEBUG.alertCallbackParams = realAlert;
+        }
+    });
+});
+
 describe('state — chống callback giả mạo / lặp', () => {
     test('sinh chuỗi đủ dài và khác nhau giữa các lần', () => {
         const a = generateState();
@@ -389,9 +460,9 @@ describe('state — chống callback giả mạo / lặp', () => {
     });
 });
 
-// ⏸️ `shouldAutoRequestToken` hiện KHÔNG được gọi trong luồng khởi động (backoff
-// tạm tắt). Vẫn giữ test để hàm không mục nát trước khi bật lại.
-describe('backoff chống ping-pong giữa hai app (tạm chưa dùng)', () => {
+// ⏸️ `shouldAutoRequestToken` hiện KHÔNG được gọi trong luồng khởi động — nghiệp
+// vụ chốt là không chặn. Vẫn giữ test để hàm không mục nát nếu sau này bật lại.
+describe('backoff chống ping-pong giữa hai app (hiện không dùng)', () => {
     test('chưa từng thử -> cho phép tự động', async () => {
         await expect(shouldAutoRequestToken()).resolves.toBe(true);
     });
@@ -459,10 +530,10 @@ describe('decideLaunchAction — cây quyết định lúc khởi động', () =
         expect(r.reason).toBe('khong-do-duoc-amis');
     });
 
-    test('(4) ⏸️ backoff ĐANG TẠM TẮT — vừa thất bại vẫn tự động thử lại ngay', () => {
-        // Test này khoá đúng hành vi tạm thời của giai đoạn vừa làm vừa test.
-        // Khi bật lại backoff trong amisLaunchFlow.js, test này SẼ ĐỎ — đó là
-        // chủ đích, đổi lại thành WELCOME là xong.
+    test('(4) ⏸️ backoff ĐÃ TẮT — vừa thất bại vẫn tự động thử lại ngay', () => {
+        // Nghiệp vụ chốt: máy trắng thông tin + có AMIS ⇒ mở app là sang AMIS,
+        // không chặn lại. Test khoá đúng điều đó — bật backoff lại thì test SẼ
+        // ĐỎ, đúng chủ đích, đổi kỳ vọng thành WELCOME là xong.
         const r = decideLaunchAction({...base, canAutoRequest: false});
         expect(r.action).toBe(LAUNCH_ACTION.REQUEST_TOKEN);
     });

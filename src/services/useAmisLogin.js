@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {AppState, Linking} from 'react-native';
+import {Alert, AppState, Linking} from 'react-native';
 import {getData} from '../components/AsyncStorage';
 import {
+    AMIS_DEBUG,
     AMIS_DETECT,
     AMIS_GETTOKEN,
     AMIS_TIMING,
@@ -17,7 +18,7 @@ import {
     lookupTenant,
     parseAmisLink,
     requestTokenKey,
-    // shouldAutoRequestToken,   // ⏸️ TẠM TẮT — backoff 24h, xem amisLaunchFlow.js
+    // shouldAutoRequestToken,   // ⏸️ backoff 24h ĐÃ TẮT (chốt nghiệp vụ), xem amisLaunchFlow.js
     verifyState,
 } from './amisAuth';
 import {
@@ -36,6 +37,40 @@ import {
  * Hook KHÔNG tự nạp WebView. Xong việc nó gọi `onSession(...)`, để App.tsx dùng
  * đúng một đường đi với deep link của kịch bản B (`applyAmisSession`).
  */
+
+/**
+ * 🚧 GỠ LỖI TẠM THỜI — hiện thẳng bộ tham số AMIS vừa gửi về.
+ *
+ * Bật/tắt ở `AMIS_DEBUG.alertCallbackParams` (amisConfig mục 5b).
+ *
+ * In cả những tham số RỖNG: khi MISA gửi thiếu, thấy "(rỗng)" mới biết là thiếu,
+ * chứ tham số vắng mặt hẳn thì dễ tưởng mình đọc sai tên.
+ *
+ * Promise chỉ resolve khi người dùng đóng Alert. `cancelable` + `onDismiss` là
+ * để đỡ nút back của Android — thiếu nó thì bấm back xong promise treo mãi và
+ * app đứng ở màn chờ không thoát ra được.
+ */
+function showCallbackAlert(parsed, rawUrl) {
+    const lines = [
+        'tenantid: ' + (parsed.tenantid || '(rỗng)'),
+        'userid: ' + (parsed.userid || '(rỗng)'),
+        'sid: ' + (parsed.sid || '(rỗng)'),
+    ];
+    ['tokenKey', 'lang', 'state', 'error'].forEach(key => {
+        if (parsed[key]) {
+            lines.push(key + ': ' + parsed[key]);
+        }
+    });
+    lines.push('', 'Link gốc:', String(rawUrl || '(không có)'));
+    return new Promise(resolve => {
+        Alert.alert(
+            'AMIS callback',
+            lines.join('\n'),
+            [{text: 'OK', onPress: () => resolve()}],
+            {cancelable: true, onDismiss: () => resolve()},
+        );
+    });
+}
 
 export const AMIS_PHASE = {
     IDLE: 'idle',
@@ -109,10 +144,22 @@ export default function useAmisLogin(options = {}) {
 
     /** Bước (2)(3)(4): nhận callback → đối chiếu state → đổi lấy link site. */
     const handleCallback = useCallback(
-        async parsed => {
+        async (parsed, rawUrl = '') => {
             // Callback đã về ⇒ huỷ ngay bộ đếm "quay lại mà chưa xác nhận",
             // kẻo nó nổ giữa chừng và giết một phiên đang chạy tốt.
             clearReturnTimer();
+            // 🚧 Đặt TRƯỚC mọi nhánh kiểm tra: đang cần thấy AMIS gửi về cái gì,
+            // kể cả khi rỗng, sai tên tham số, hay báo lỗi từ chối.
+            if (AMIS_DEBUG.alertCallbackParams) {
+                await showCallbackAlert(parsed, rawUrl);
+                if (AMIS_DEBUG.stopAfterAlert) {
+                    // Chưa có endpoint trang QL ⇒ xem tham số là hết việc.
+                    // goIdle('') chứ không phải mã lỗi: không có gì sai ở đây,
+                    // đừng hiện thêm hộp thoại lỗi chồng lên.
+                    goIdle('');
+                    return;
+                }
+            }
             const denied = classifyCallbackError(parsed.error);
             if (denied) {
                 goIdle(denied);
@@ -221,7 +268,7 @@ export default function useAmisLogin(options = {}) {
             if (parsed.type === LINK_TYPE.CALLBACK) {
                 setAmisAvailable(true);
                 applyPhase(AMIS_PHASE.EXCHANGING);
-                await handleCallback(parsed);
+                await handleCallback(parsed, initialUrl);
                 return;
             }
 
@@ -229,7 +276,7 @@ export default function useAmisLogin(options = {}) {
                 getData('url'),
                 getData('saas_userdata'),
                 isAmisInstalled(),
-                // ⏸️ TẠM TẮT — backoff 24h, xem amisLaunchFlow.js
+                // ⏸️ backoff 24h ĐÃ TẮT (chốt nghiệp vụ), xem amisLaunchFlow.js
                 // shouldAutoRequestToken(),
             ]);
             if (cancelled) {
@@ -244,7 +291,7 @@ export default function useAmisLogin(options = {}) {
                 storedUrl: storedUrl || '',
                 storedSaas: storedSaas || '',
                 amisDetection: detection,
-                // canAutoRequest,   // ⏸️ TẠM TẮT — backoff 24h
+                // canAutoRequest,   // ⏸️ backoff 24h ĐÃ TẮT (chốt nghiệp vụ)
             });
             if (action !== LAUNCH_ACTION.REQUEST_TOKEN) {
                 applyPhase(AMIS_PHASE.IDLE);
@@ -267,7 +314,7 @@ export default function useAmisLogin(options = {}) {
                 return;
             }
             applyPhase(AMIS_PHASE.EXCHANGING);
-            handleCallback(parsed);
+            handleCallback(parsed, url);
         };
         const sub = Linking.addEventListener('url', onUrl);
         return () => sub.remove();
