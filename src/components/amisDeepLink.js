@@ -36,6 +36,9 @@ export function isFromAmisApp(amisParams) {
 // Điểm vào đăng nhập SaaS, tính từ wwwroot của site.
 const SAAS_LOGIN_PATH = '/auth/saas/index.php';
 const SAAS_MARKER = 'auth/saas/index.php';
+// Điểm vào đăng nhập thường. `applms=true` là cờ mà web dùng để biết request
+// đến từ app — giữ đúng dạng mà luồng nhập link tay đang lưu.
+const LOGIN_ENTRY_PATH = '/login/index.php?applms=true';
 
 // LƯỚI ĐỠ, không phải luồng chính: theo hợp đồng đã chốt, AMIS gửi thẳng
 // `https://<wwwroot>/auth/saas/index.php` nên toSaasLoginUrl() thoát sớm và
@@ -227,6 +230,18 @@ export function readAmisSid(rawUrl) {
 }
 
 /**
+ * Đọc `tenantid` từ URL sắp nạp. Trả '' nếu không có.
+ * Backend đọc tenant qua cookie `TENANT` nên cần chính giá trị.
+ */
+export function readAmisTenantId(rawUrl) {
+    const parsed = parseUrl(rawUrl);
+    if (!parsed) {
+        return '';
+    }
+    return readParam(parsed.searchParams, 'tenantid');
+}
+
+/**
  * URL sắp nạp có mang `sid` không. Dùng để quyết định body POST: có `sid` thì
  * `sid` là danh tính duy nhất, không gửi kèm username/password/user_saas.
  */
@@ -286,6 +301,30 @@ export function toSaasLoginUrl(rawUrl) {
     }
     const parsed = parseUrl(url);
     return wwwroot + SAAS_LOGIN_PATH + (parsed && parsed.search ? parsed.search : '');
+}
+
+/**
+ * Điểm vào cần nạp ở lần mở app SAU, chọn theo cách người dùng VỪA đăng nhập.
+ *
+ * Vì sao phải đổi theo: hai điểm vào nhận hai loại thông tin khác nhau.
+ * - `auth/saas/index.php` chỉ hiểu `sid` / `user_saas`. Nó **không xử lý**
+ *   `username`/`password` — gửi vào cũng bị bỏ qua, rồi vì không có phiên SaaS
+ *   nào nên backend đẩy thẳng người dùng sang trang đăng nhập MISA.
+ * - `login/index.php` mới là chỗ nhận `username`/`password`.
+ *
+ * Đăng nhập tay xong mà vẫn giữ điểm vào SaaS thì lần mở app sau bị đá sang
+ * MISA, dù máy đang có đủ tài khoản thường để tự đăng nhập.
+ *
+ * Trả '' khi không suy được wwwroot — bên gọi giữ nguyên URL đang lưu.
+ */
+export function toAuthEntryUrl(rawUrl, authMethod) {
+    const wwwroot = deriveWwwroot(rawUrl);
+    if (!wwwroot) {
+        return '';
+    }
+    return authMethod === 'saas'
+        ? wwwroot + SAAS_LOGIN_PATH
+        : wwwroot + LOGIN_ENTRY_PATH;
 }
 
 /**

@@ -11,8 +11,46 @@ import {
   normalizeAmisLang,
   deriveWwwroot,
   toSaasLoginUrl,
+  toAuthEntryUrl,
   normalizeLegacyMisaUrl,
 } from '../src/components/amisDeepLink';
+
+// Đăng nhập bằng AMIS rồi đăng xuất rồi đăng nhập TAY: điểm vào lưu lại phải đổi
+// theo, nếu không lần mở app sau bị đá sang trang đăng nhập MISA vì
+// `auth/saas/index.php` không nhận username/password.
+describe('toAuthEntryUrl — điểm vào cho lần mở app sau', () => {
+  it('đăng nhập saas -> giữ điểm vào SaaS', () => {
+    expect(toAuthEntryUrl('http://localhost:8990/my/', 'saas')).toBe(
+      'http://localhost:8990/auth/saas/index.php',
+    );
+  });
+
+  it('đăng nhập tay -> chuyển sang điểm vào login thường', () => {
+    expect(
+      toAuthEntryUrl('http://localhost:8990/auth/saas/index.php', 'manual'),
+    ).toBe('http://localhost:8990/login/index.php?applms=true');
+  });
+
+  it('giá trị auth lạ cũng coi như đăng nhập thường', () => {
+    expect(toAuthEntryUrl('http://localhost:8990/my/', 'sso')).toBe(
+      'http://localhost:8990/login/index.php?applms=true',
+    );
+  });
+
+  it('giữ đúng sub-path của site', () => {
+    expect(toAuthEntryUrl('https://misajsc.amis.vn/lms/my/', 'saas')).toBe(
+      'https://misajsc.amis.vn/lms/auth/saas/index.php',
+    );
+    expect(toAuthEntryUrl('https://abc.vn/daotao/my/', 'manual')).toBe(
+      'https://abc.vn/daotao/login/index.php?applms=true',
+    );
+  });
+
+  it('URL rỗng/hỏng -> trả rỗng để bên gọi giữ nguyên URL đang lưu', () => {
+    expect(toAuthEntryUrl('', 'manual')).toBe('');
+    expect(toAuthEntryUrl('khong-phai-url', 'saas')).toBe('');
+  });
+});
 
 describe('splitAmisParams', () => {
   it('tách sid + tenantid và trả URL sạch', () => {
@@ -52,6 +90,43 @@ describe('splitAmisParams', () => {
   it('không ném lỗi với chuỗi không phải URL', () => {
     expect(splitAmisParams('khong-phai-url').cleanUrl).toBe('khong-phai-url');
     expect(splitAmisParams('').cleanUrl).toBe('');
+  });
+});
+
+// Đăng xuất dựng URL bằng deriveWwwroot() thay vì dò '/lms/'. Khoá lại đúng các
+// URL gặp trên máy thật (môi trường dev localhost:8990, site cài ở GỐC domain)
+// vì đây là chỗ từng làm app chết với `Invalid URL`.
+describe('deriveWwwroot — dựng URL đăng xuất', () => {
+  const logoutUrl = url => deriveWwwroot(url) + '/login/logout.php?sesskey=K1';
+
+  it('site cài ở gốc domain (localhost:8990 — môi trường dev)', () => {
+    expect(logoutUrl('http://localhost:8990/auth/saas/index.php')).toBe(
+      'http://localhost:8990/login/logout.php?sesskey=K1',
+    );
+    expect(logoutUrl('http://localhost:8990/my/')).toBe(
+      'http://localhost:8990/login/logout.php?sesskey=K1',
+    );
+    expect(logoutUrl('http://localhost:8990/examonline.php')).toBe(
+      'http://localhost:8990/login/logout.php?sesskey=K1',
+    );
+  });
+
+  it('MISA JSC — site dưới sub-path /lms', () => {
+    expect(logoutUrl('https://misajsc.amis.vn/lms/my/')).toBe(
+      'https://misajsc.amis.vn/lms/login/logout.php?sesskey=K1',
+    );
+  });
+
+  it('sub-path tên khác — chỗ mà cách dò "/lms/" cũ trả về SAI', () => {
+    expect(logoutUrl('https://abc.vn/daotao/my/')).toBe(
+      'https://abc.vn/daotao/login/logout.php?sesskey=K1',
+    );
+  });
+
+  it('URL rỗng/hỏng -> wwwroot rỗng, để bên gọi đi nhánh không nạp trang', () => {
+    // Trước đây chỗ này là `new URL('')` -> ném TypeError giữa lúc đăng xuất.
+    expect(deriveWwwroot('')).toBe('');
+    expect(deriveWwwroot('khong-phai-url')).toBe('');
   });
 });
 

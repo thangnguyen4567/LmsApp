@@ -3,7 +3,11 @@ import { withTranslation } from 'react-i18next';
 import { WebView } from 'react-native-webview';
 import { URL } from 'react-native-url-polyfill';
 import { saveData } from '../components/AsyncStorage';
-import { hasAmisSid, readAmisSid } from '../components/amisDeepLink';
+import {
+  hasAmisSid,
+  readAmisSid,
+  readAmisTenantId,
+} from '../components/amisDeepLink';
 import {
   StyleSheet,
   View,
@@ -28,14 +32,16 @@ class ContentView extends Component {
             webview: '',
             loadFailed: false,
             downloading: false, // iOS: đang tải file qua onFileDownload
-            // `sid` mà cookie x-sessionid đang mang. '' = cookie đã được dọn.
-            // Chưa khớp với sid của URL sắp nạp thì CHƯA render WebView.
+            // Giá trị mà cookie `x-sessionid` / `TENANT` đang mang.
+            // '' = cookie đã được dọn. Chưa khớp với URL sắp nạp thì CHƯA render
+            // WebView.
             // Khởi tạo `null` (không phải '') để lần chạy đầu LUÔN đồng bộ một
-            // lần — kể cả khi URL không có sid, vì đúng lúc đó mới cần dọn
-            // cookie sót lại từ phiên trước.
+            // lần — kể cả khi URL không có tham số nào, vì đúng lúc đó mới cần
+            // dọn cookie sót lại từ phiên trước.
             sidCookieFor: null,
+            tenantCookieFor: null,
         };
-        this._syncingSidCookie = false;
+        this._syncingAmisCookies = false;
     }
     componentDidMount() {
         this._backHandler = BackHandler.addEventListener(
@@ -48,11 +54,11 @@ class ContentView extends Component {
                 return false;
             },
         );
-        this.syncSidCookie();
+        this.syncAmisCookies();
     }
     componentDidUpdate(prevProps) {
         if (prevProps.url !== this.props.url) {
-            this.syncSidCookie();
+            this.syncAmisCookies();
         }
     }
     componentWillUnmount() {
@@ -60,24 +66,38 @@ class ContentView extends Component {
     }
 
     /**
-     * Đồng bộ cookie `x-sessionid` với `sid` của URL sắp nạp.
+     * Đồng bộ cookie `x-sessionid` và `TENANT` với `sid`/`tenantid` của URL sắp
+     * nạp. Phải xong TRƯỚC khi WebView phát request đầu tiên — đặt sau là
+     * request đó đã đi mất rồi.
      *
-     * Backend đọc `sid` ở HAI chỗ: query string và cookie `x-sessionid`
-     * (saas/lib.php → `get()`), nên phải đặt cookie trước khi WebView phát
-     * request đầu tiên — đặt sau là request đó đã đi mất rồi.
+     * Backend đọc hai giá trị này ở cả query string lẫn cookie:
+     * - `x-sessionid` → `saas/lib.php` `get()`
+     * - `TENANT`      → `auth/saas/index.php`, quyết định có đẩy người dùng sang
+     *   trang đăng nhập MISA hay không
      *
-     * ⚠️ Không có `sid` thì XOÁ cookie, không để lại. Cookie sống qua nhiều lần
-     * mở app, mà `get()` cho cookie ĐÈ LÊN `sid` truyền vào — để sót một sid cũ
-     * là những lần sau đăng nhập bằng phiên đã hết hạn, đúng thứ mà quy tắc
-     * "không bao giờ lưu sid" đang tránh.
+     * ⚠️ Tên cookie `TENANT` viết HOA, đúng như backend đọc (`$_COOKIE['TENANT']`).
+     * Tên cookie phân biệt hoa thường — viết thường là backend không thấy gì.
+     *
+     * ⚠️ Không có giá trị thì phải DỌN cookie, tuyệt đối không để lại. Cookie
+     * sống qua nhiều lần mở app, và mỗi cookie sót lại gây một kiểu hỏng riêng:
+     * - `TENANT` sót ⇒ `auth/saas/index.php` bỏ qua bước redirect ra trang đăng
+     *   nhập, rơi xuống `handleredirect()` và trả **200 body rỗng** ⇒ MÀN TRẮNG,
+     *   không có lỗi HTTP nào để `onHttpError` bắt được.
+     * - `x-sessionid` sót ⇒ `get()` cho cookie đè lên `sid` truyền vào ⇒ đăng
+     *   nhập bằng phiên đã hết hạn.
+     * Cách dọn: xem `applyCookie` bên dưới — KHÔNG dùng được `clearByName`.
      */
-    syncSidCookie = async () => {
-        if (this._syncingSidCookie) {
+    syncAmisCookies = async () => {
+        if (this._syncingAmisCookies) {
             return;
         }
         const url = this.props.url || '';
         const sid = readAmisSid(url);
-        if (sid === this.state.sidCookieFor) {
+        const tenantId = readAmisTenantId(url);
+        if (
+            sid === this.state.sidCookieFor &&
+            tenantId === this.state.tenantCookieFor
+        ) {
             return;
         }
         let origin = '';
@@ -85,26 +105,41 @@ class ContentView extends Component {
             origin = new URL(url).origin;
         } catch (e) {
             // URL không phân tích được thì không có origin để gắn cookie.
-            this.setState({ sidCookieFor: sid });
+            this.setState({ sidCookieFor: sid, tenantCookieFor: tenantId });
             return;
         }
-        this._syncingSidCookie = true;
-        try {
-            if (sid) {
+        // Xoá = GHI GIÁ TRỊ RỖNG, không dùng `clearByName`.
+        //
+        // ⚠️ `CookieManager.clearByName()` KHÔNG được hiện thực trên Android —
+        // native luôn `promise.reject("not_supported")`. Xoá bằng `expires` quá
+        // khứ cũng vô dụng: `toRFC6265string()` bỏ luôn thuộc tính `expires` khi
+        // ngày đã qua, cookie chỉ bị ghi lại thành session cookie.
+        //
+        // Ghi rỗng thì đạt đúng mục đích, vì PHP coi chuỗi rỗng là FALSY:
+        //   `$_COOKIE['TENANT']` = ''  ⇒ `!$tenant` đúng ⇒ backend redirect như
+        //   khi không có cookie (đã kiểm chứng: TENANT rỗng → 302, có giá trị → 200 rỗng).
+        //   `if ($sid = $_COOKIE['x-sessionid'])` = '' ⇒ không đè lên sid truyền vào.
+        const applyCookie = async (name, value) => {
+            // Mỗi cookie một try/catch RIÊNG: gộp chung thì cookie đầu lỗi là
+            // cookie sau không bao giờ được ghi — đúng cái đã làm `TENANT` sót lại.
+            try {
                 await CookieManager.set(
                     origin,
-                    { name: 'x-sessionid', value: sid, path: '/' },
+                    { name, value: value || '', path: '/' },
                     true,
                 );
-            } else {
-                await CookieManager.clearByName(origin, 'x-sessionid', true);
+            } catch (e) {
+                // Ghi cookie hỏng thì vẫn nạp trang: backend còn đọc được cả hai
+                // giá trị ở query string. Chặn ở đây chỉ làm người dùng kẹt màn trắng.
             }
-        } catch (e) {
-            // Ghi cookie hỏng thì vẫn nạp trang: backend còn đọc được `sid` ở
-            // query string, chặn ở đây chỉ làm người dùng kẹt màn trắng.
+        };
+        this._syncingAmisCookies = true;
+        try {
+            await applyCookie('x-sessionid', sid);
+            await applyCookie('TENANT', tenantId);
         } finally {
-            this._syncingSidCookie = false;
-            this.setState({ sidCookieFor: sid });
+            this._syncingAmisCookies = false;
+            this.setState({ sidCookieFor: sid, tenantCookieFor: tenantId });
         }
     };
     render() {
@@ -191,6 +226,9 @@ class ContentView extends Component {
             }
             if (data.session && data.session !== this.props.sessKey) {
                 this.props.setSession(data.session);
+            }
+            if (data.auth) {
+                this.props.setAuthMethod?.(data.auth);
             }
             // Lưu thông tin đăng nhập của saas
             if(data.saas_userdata) {
@@ -437,10 +475,13 @@ class ContentView extends Component {
                 source.body = getBody();
             }
         }
-        // Cookie x-sessionid phải xong TRƯỚC khi WebView phát request đầu tiên.
-        // Kiểm tra đồng bộ ngay trong render (không chờ effect) vì `source` đổi
-        // là WebView nạp ngay — chậm một nhịp là request đã đi mất.
-        if (readAmisSid(this.props.url) !== this.state.sidCookieFor) {
+        // Cookie x-sessionid + TENANT phải xong TRƯỚC khi WebView phát request
+        // đầu tiên. Kiểm tra đồng bộ ngay trong render (không chờ effect) vì
+        // `source` đổi là WebView nạp ngay — chậm một nhịp là request đã đi mất.
+        if (
+            readAmisSid(this.props.url) !== this.state.sidCookieFor ||
+            readAmisTenantId(this.props.url) !== this.state.tenantCookieFor
+        ) {
             return (
                 <View style={[styles.container, commonStyles.overlayCenter]}>
                     <ActivityIndicator size="large" color={colors.systemcolor} />

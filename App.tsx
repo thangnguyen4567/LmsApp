@@ -121,6 +121,19 @@ function HomeScreen({
     [],
   );
 
+  /**
+   * Kết thúc phiên deep link AMIS.
+   *
+   * ⚠️ Phải xoá CẢ BA thứ cùng nhau. Bản trước chỉ xoá `redirectFromLink` nên
+   * `fromAmis` đọng lại tới hết đời app: đăng xuất rồi đăng nhập tay bằng tài
+   * khoản khác mà nút "Quay về AMIS" vẫn hiện.
+   */
+  const clearAmisRedirect = useCallback(() => {
+    setRedirectFromLink('');
+    setRedirectTenantId('');
+    setFromAmis(false);
+  }, []);
+
   // Kịch bản A — máy chưa có phiên nào, app tự hỏi AMIS xin token.
   // Toàn bộ tính năng tự ngủ khi src/services/amisConfig.js chưa được điền.
   const amis = useAmisLogin({
@@ -196,7 +209,7 @@ function HomeScreen({
           onAmisLogin={amis.startAmisLogin}
           onCancelAmisLogin={amis.cancelAmisLogin}
           onDismissAmisError={amis.dismissError}
-          onClearRedirectUrl={() => setRedirectFromLink('')}
+          onClearRedirectUrl={clearAmisRedirect}
         />
       ) : (
         <OfflineView />

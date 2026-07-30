@@ -45,6 +45,7 @@ const {
 const {
     hasAmisSid,
     readAmisSid,
+    readAmisTenantId,
 } = require('../src/components/amisDeepLink');
 
 const {
@@ -303,6 +304,13 @@ describe('parseAmisLink — phân loại deep link vào app', () => {
         expect(parsed.tokenKey).toBe('');
     });
 
+    test('deep link `home` TRỐNG (không có URL đích) vẫn là HOME', () => {
+        // AMIS có thể gọi thẳng `vnrlms://applms/home` cho gọn. Phải nhận diện
+        // được để không xử lý nhầm thành callback.
+        expect(parseAmisLink('vnrlms://applms/home').type).toBe(LINK_TYPE.HOME);
+        expect(parseAmisLink('vnrlms://applms/home/').type).toBe(LINK_TYPE.HOME);
+    });
+
     test('path lạ -> unknown, không nhận nhầm thành callback', () => {
         expect(parseAmisLink('vnrlms://applms/whatever?token=X').type).toBe(
             LINK_TYPE.UNKNOWN,
@@ -522,6 +530,29 @@ describe('lookupTenant — tra thông tin tenant, khoá là tenantid', () => {
         const res = await lookupTenant({tenantid: 'T001'});
         expect(res.ok).toBe(false);
         expect(res.error).toBe(LOOKUP_ERROR.NOTFOUND);
+    });
+});
+
+describe('readAmisTenantId — nguồn giá trị cho cookie TENANT', () => {
+    test('lấy đúng tenantid', () => {
+        expect(
+            readAmisTenantId('https://x.vn/auth/saas/index.php?sid=A&tenantid=T001'),
+        ).toBe('T001');
+    });
+
+    test('không phân biệt hoa thường tên tham số', () => {
+        expect(readAmisTenantId('https://x.vn/a.php?TenantID=T001')).toBe('T001');
+    });
+
+    test('không có tenantid -> chuỗi rỗng (tín hiệu để XOÁ cookie cũ)', () => {
+        expect(readAmisTenantId('https://x.vn/a.php?sid=A')).toBe('');
+        expect(readAmisTenantId('')).toBe('');
+    });
+
+    test('đọc được độc lập với sid — hai cookie hai giá trị khác nhau', () => {
+        const url = 'https://x.vn/a.php?sid=SID9&tenantid=T007';
+        expect(readAmisSid(url)).toBe('SID9');
+        expect(readAmisTenantId(url)).toBe('T007');
     });
 });
 

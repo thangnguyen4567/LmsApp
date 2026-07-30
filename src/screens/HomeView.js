@@ -8,6 +8,7 @@ import {URL,URLSearchParams} from 'react-native-url-polyfill';
 import {OneSignal} from 'react-native-onesignal';
 import {PERMISSIONS, request} from 'react-native-permissions';
 import {saveData,getData,deleteData} from '../components/AsyncStorage';
+import {deriveWwwroot, toAuthEntryUrl} from '../components/amisDeepLink';
 import {getAmisReturnUrl} from '../services/amisConfig';
 import {clearAmisSession, openAmisUrl} from '../services/amisAuth';
 import ActionGridModal from '../components/ActionGridModal';
@@ -106,6 +107,9 @@ class HomeView extends Component {
             storageReady: false,
             saas_userdata: "",
             welcomeInitialUrl: "",
+            // Cách web báo phiên hiện tại đã đăng nhập bằng gì ('saas' = qua AMIS).
+            // Chỉ sống trong phiên: mỗi lần nạp trang web sẽ gửi lại.
+            authMethod: "",
         };
         this.componentDidMount = this.componentDidMount.bind(this);
         this._onOneSignalNotificationClick = this._onOneSignalNotificationClick.bind(
@@ -219,6 +223,22 @@ class HomeView extends Component {
         // openAmisUrl: trên Android khoá intent vào đúng package AMIS nên không
         // rơi ra trình duyệt; iOS dùng custom scheme nên vốn đã trỏ thẳng app.
         openAmisUrl(url);
+    };
+    // Web báo phiên này đăng nhập bằng cách nào. Chặn setState thừa vì web gửi
+    // lại sau mỗi lần điều hướng trang.
+    setAuthMethod = (auth) => {
+        if (!auth || auth === this.state.authMethod) {
+            return;
+        }
+        this.setState({authMethod: auth});
+        // Ghi lại ĐIỂM VÀO cho lần mở app sau, khớp với cách vừa đăng nhập.
+        // Không làm bước này thì: đăng nhập bằng AMIS (lưu `auth/saas/index.php`)
+        // → đăng xuất → đăng nhập tay → mở lại app vẫn nạp điểm vào SaaS, mà chỗ
+        // đó không nhận username/password nên backend đẩy sang trang đăng nhập MISA.
+        const entryUrl = toAuthEntryUrl(this.resolveSiteUrl(), auth);
+        if (entryUrl) {
+            saveData('url', entryUrl);
+        }
     };
     // Nhận cấu hình navbar từ web (label đã dịch theo tenant) + cache lại
     setNavConfig = (navConfig) => {
@@ -359,6 +379,8 @@ class HomeView extends Component {
                 saas_userdata: '',
                 navConfig: null,
                 session: '',
+                // Tenant mới thì chờ web báo lại, không giữ kết luận của tenant cũ.
+                authMethod: '',
             });
         }
         this._tenantId = tenantId;
@@ -423,6 +445,73 @@ class HomeView extends Component {
         this.setState({url: loginUrl, scanQRCode: false, welcomeInitialUrl: raw});
         return true;
     }
+    /**
+     * URL của site LMS đang dùng cho phiên này.
+     *
+     * ⚠️ KHÔNG đọc thẳng `this.state.url`: luồng deep link **không bao giờ ghi
+     * vào nó** (App.tsx chỉ set `props.redirectUrl` + lưu MMKV), nên trên máy vừa
+     * cài app — `componentDidMount` đọc MMKV lúc còn trống — `state.url` là `''`
+     * suốt phiên. Đó chính là nguyên nhân `new URL('')` ném `Invalid URL` khi
+     * bấm Đăng xuất.
+     *
+     * `currentUrl` để cuối vì nó là URL WebView đang mở, có thể đang ở domain
+     * ngoài (vd trang đăng nhập MISA) — dùng nó dựng URL đăng xuất sẽ trỏ sai site.
+     */
+    resolveSiteUrl = () =>
+        this.props.redirectUrl || this.state.url || this.state.currentUrl || '';
+
+    // Dọn mọi dấu vết đăng nhập ở máy. Tách riêng để chạy được cả khi không dựng
+    // được URL đăng xuất trên web — đăng xuất cục bộ không được phụ thuộc điều đó.
+    clearLocalSession = () => {
+        deleteData('username');
+        deleteData('password');
+        deleteData('saas_userdata');
+        deleteData('navConfig');
+        // Quên luôn tenant đang gắn + cờ chống lặp của kịch bản A, để deep link
+        // AMIS lần sau (kể cả cùng tenant) được coi là phiên mới.
+        clearAmisSession();
+        this._tenantId = '';
+    };
+
+    handleLogout = () => {
+        const sesskey = this.state.session;
+        // wwwroot suy từ chính URL đang dùng ⇒ đúng cho site cài ở gốc domain lẫn
+        // site nằm dưới sub-path bất kỳ (/lms, /daotao…). Thay cho việc dò '/lms/'
+        // trước đây — cách đó sai với khách hàng dùng sub-path tên khác.
+        const wwwroot = deriveWwwroot(this.resolveSiteUrl());
+        const cleared = {
+            session: '',
+            isMenuOpen: false,
+            username: '',
+            password: '',
+            saas_userdata: '',
+            navConfig: null,
+            authMethod: '',
+        };
+        this.clearLocalSession();
+        if (!wwwroot) {
+            // Không suy được gốc site (URL rỗng/hỏng): bỏ bước gọi logout trên web
+            // và về màn Welcome. Vẫn hơn là để app chết giữa lúc đăng xuất.
+            this.props.onClearRedirectUrl?.();
+            this.setState({
+                ...cleared,
+                url: '',
+                currentUrl: '',
+                webTitle: '',
+                canGoBack: false,
+            });
+            return;
+        }
+        // Bắt buộc xoá redirectUrl: render ưu tiên `props.redirectUrl` hơn
+        // `state.url`, không xoá thì URL đăng xuất không bao giờ được nạp và
+        // phiên trên server vẫn sống.
+        this.props.onClearRedirectUrl?.();
+        this.setState({
+            ...cleared,
+            url: wwwroot + '/login/logout.php?sesskey=' + sesskey,
+        });
+    };
+
     // Quay lại màn Welcome khi đã mở URL nhưng CHƯA đăng nhập
     backToWelcome = () => {
         const current = this.props.redirectUrl || this.state.url || '';
@@ -441,58 +530,43 @@ class HomeView extends Component {
             webTitle: '',
             currentUrl: '',
             canGoBack: false,
+            authMethod: '',
         });
     }
     render() {
         const {t} = this.props;
-        const canReturnToAmis = Boolean(this.props.fromAmis && getAmisReturnUrl());
+        // Hiện nút "Quay về AMIS" khi phiên này gắn với AMIS.
+        //
+        // Web đã báo `auth` thì TIN WEB — đó là sự thật về phiên đang chạy.
+        // `props.fromAmis` (suy từ tham số deep link) chỉ là phỏng đoán lạc quan
+        // để dùng trong lúc CHƯA có tin từ web: vào bằng deep link kèm `sid` mà
+        // `sid` hỏng rồi người dùng đăng nhập tay thì phiên đó là 'manual', không
+        // phải AMIS — lấy `||` là nút vẫn hiện sai.
+        const cameFromAmis = this.state.authMethod
+            ? this.state.authMethod === 'saas'
+            : Boolean(this.props.fromAmis);
+        const canReturnToAmis = Boolean(cameFromAmis && getAmisReturnUrl());
         const dataMenu = [
-            { icon: 'qrcode', title: t('menu.scanQr'), onPress: () => this.setState({
-                scanQRCode:true,
-                scanAtt:true,
-                isMenuOpen:false,
-            })},
-            // TODO: thay icon tạm 'external-link-alt' bằng ảnh AMIS khi có —
-            // ActionGridModal nhận { icon: require('../assets/amis.png'), isImage: true }
             ...(canReturnToAmis ? [{
-                icon: 'external-link-alt',
+                icon: require('../assets/amislogo.png'),
+                isImage: true,
                 title: t('menu.backToAmis'),
                 onPress: () => {
                     this.setState({isMenuOpen:false});
                     this.returnToAmisApp();
                 },
             }] : []),
+            { icon: 'qrcode', title: t('menu.scanQr'), onPress: () => this.setState({
+                scanQRCode:true,
+                scanAtt:true,
+                isMenuOpen:false,
+            })},
             { icon: 'sign-out-alt', title: t('menu.logout'), onPress: () => Alert.alert(
                 t('logout.confirmTitle'),
                 t('logout.confirmMessage'),
                 [
                     { text: t('common.cancel'), style: 'cancel' },
-                    { text: t('common.agree'), onPress: () => {
-                        let newurl = new URL(this.state.url);
-                        const logoutPath =
-                            this.state.url.indexOf('/lms/') > -1
-                                ? '/lms/login/logout.php?sesskey='
-                                : '/login/logout.php?sesskey=';
-                        this.setState({
-                            url: newurl.origin + logoutPath + this.state.session,
-                            session: '',
-                            isMenuOpen: false,
-                            username: '',
-                            password: '',
-                            saas_userdata: '',
-                            navConfig: null,
-                        });
-                        deleteData('username');
-                        deleteData('password');
-                        deleteData('saas_userdata');
-                        deleteData('navConfig');
-                        // Quên luôn tenant đang gắn + cờ chống lặp của kịch bản
-                        // A, để deep link AMIS lần sau (kể cả cùng tenant) được
-                        // coi là phiên mới, và nút "Đăng nhập bằng AMIS" chạy
-                        // lại được ngay chứ không phải chờ hết backoff.
-                        clearAmisSession();
-                        this._tenantId = '';
-                    }},
+                    { text: t('common.agree'), onPress: this.handleLogout },
                 ]
             )
             },
@@ -586,6 +660,7 @@ class HomeView extends Component {
                             setCurrentUrl={(data) => this.setState({currentUrl:data})}
                             setCanGoBack={(data) => this.setState({canGoBack:data})}
                             setNavConfig={this.setNavConfig}
+                            setAuthMethod={this.setAuthMethod}
                             sessKey={this.state.session}
                             setUrl={(data) => this.setState({url:data})}
                         />
