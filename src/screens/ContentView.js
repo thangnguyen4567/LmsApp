@@ -68,24 +68,17 @@ class ContentView extends Component {
     /**
      * Đồng bộ cookie `x-sessionid` và `TENANT` với `sid`/`tenantid` của URL sắp
      * nạp. Phải xong TRƯỚC khi WebView phát request đầu tiên — đặt sau là
-     * request đó đã đi mất rồi.
+     * request đó đã đi mất. Backend đọc hai giá trị này ở cả query lẫn cookie.
      *
-     * Backend đọc hai giá trị này ở cả query string lẫn cookie:
-     * - `x-sessionid` → `saas/lib.php` `get()`
-     * - `TENANT`      → `auth/saas/index.php`, quyết định có đẩy người dùng sang
-     *   trang đăng nhập MISA hay không
+     * ⚠️ Tên `TENANT` viết HOA đúng như backend đọc; tên cookie phân biệt hoa
+     * thường, viết thường là backend không thấy gì.
      *
-     * ⚠️ Tên cookie `TENANT` viết HOA, đúng như backend đọc (`$_COOKIE['TENANT']`).
-     * Tên cookie phân biệt hoa thường — viết thường là backend không thấy gì.
-     *
-     * ⚠️ Không có giá trị thì phải DỌN cookie, tuyệt đối không để lại. Cookie
-     * sống qua nhiều lần mở app, và mỗi cookie sót lại gây một kiểu hỏng riêng:
+     * ⚠️ Không có giá trị thì phải DỌN, mỗi cookie sót lại hỏng một kiểu:
      * - `TENANT` sót ⇒ `auth/saas/index.php` bỏ qua bước redirect ra trang đăng
-     *   nhập, rơi xuống `handleredirect()` và trả **200 body rỗng** ⇒ MÀN TRẮNG,
-     *   không có lỗi HTTP nào để `onHttpError` bắt được.
-     * - `x-sessionid` sót ⇒ `get()` cho cookie đè lên `sid` truyền vào ⇒ đăng
-     *   nhập bằng phiên đã hết hạn.
-     * Cách dọn: xem `applyCookie` bên dưới — KHÔNG dùng được `clearByName`.
+     *   nhập, rơi xuống `handleredirect()` trả 200 body rỗng ⇒ MÀN TRẮNG, không
+     *   có lỗi HTTP nào để `onHttpError` bắt.
+     * - `x-sessionid` sót ⇒ cookie đè lên `sid` truyền vào ⇒ đăng nhập bằng
+     *   phiên đã hết hạn.
      */
     syncAmisCookies = async () => {
         if (this._syncingAmisCookies) {
@@ -108,20 +101,18 @@ class ContentView extends Component {
             this.setState({ sidCookieFor: sid, tenantCookieFor: tenantId });
             return;
         }
-        // Xoá = GHI GIÁ TRỊ RỖNG, không dùng `clearByName`.
+        // Xoá = GHI GIÁ TRỊ RỖNG, KHÔNG dùng `clearByName`.
         //
-        // ⚠️ `CookieManager.clearByName()` KHÔNG được hiện thực trên Android —
+        // ⚠️ `CookieManager.clearByName()` chưa được hiện thực trên Android —
         // native luôn `promise.reject("not_supported")`. Xoá bằng `expires` quá
-        // khứ cũng vô dụng: `toRFC6265string()` bỏ luôn thuộc tính `expires` khi
-        // ngày đã qua, cookie chỉ bị ghi lại thành session cookie.
+        // khứ cũng vô dụng: `toRFC6265string()` bỏ luôn `expires` khi ngày đã
+        // qua, cookie chỉ bị ghi lại thành session cookie.
         //
-        // Ghi rỗng thì đạt đúng mục đích, vì PHP coi chuỗi rỗng là FALSY:
-        //   `$_COOKIE['TENANT']` = ''  ⇒ `!$tenant` đúng ⇒ backend redirect như
-        //   khi không có cookie (đã kiểm chứng: TENANT rỗng → 302, có giá trị → 200 rỗng).
-        //   `if ($sid = $_COOKIE['x-sessionid'])` = '' ⇒ không đè lên sid truyền vào.
+        // Ghi rỗng thì đạt mục đích vì PHP coi chuỗi rỗng là FALSY, nên backend
+        // xử lý y như khi không có cookie.
         const applyCookie = async (name, value) => {
             // Mỗi cookie một try/catch RIÊNG: gộp chung thì cookie đầu lỗi là
-            // cookie sau không bao giờ được ghi — đúng cái đã làm `TENANT` sót lại.
+            // cookie sau không bao giờ được ghi.
             try {
                 await CookieManager.set(
                     origin,
@@ -211,7 +202,7 @@ class ContentView extends Component {
             })();
             true;
         `;
-        // Xư lý các thông tin được gửi từ web
+        // Xử lý thông tin web gửi sang qua window.ReactNativeWebView.postMessage
         const listenFromWeb = async (event) => {
             let data = null;
             try {
@@ -436,7 +427,9 @@ class ContentView extends Component {
             buildAuthFields()
                 .map(([name, value]) => name + '=' + encodeURIComponent(value))
                 .join('&');
-        // iOS: WKWebView.loadRequest BỎ HTTP body của POST (giới hạn của WebKit) → nạp source POST kiểu Android sẽ mất username/password ⇒ mở lại app không auto-login, hiện lại trang login.
+        // iOS: WKWebView.loadRequest BỎ HTTP body của POST (giới hạn của WebKit)
+        // → nạp source POST kiểu Android sẽ mất username/password, mở lại app
+        // là không auto-login mà hiện lại trang đăng nhập.
         const htmlEscape = s => {
             const str = s === undefined || s === null ? '' : String(s);
             return str

@@ -19,44 +19,35 @@ import {
 } from './amisConfig';
 
 /**
- * Kịch bản A — máy CHƯA từng có phiên LMS nào.
+ * Kịch bản A — máy chưa từng có phiên LMS nào.
  *
- * Người dùng cài app LMS từ store rồi mở thẳng (không qua deep link AMIS), nên
- * app không có URL site nào để nạp. Thay vì bắt nhập mã cấu hình, app tự hỏi
- * app AMIS trên máy xin token, rồi mang token sang trang quản lý VNR đổi lấy
- * link site LMS của tenant.
+ * Người dùng cài app từ store rồi mở thẳng (không qua deep link AMIS) nên app
+ * không có URL site nào để nạp. Thay vì bắt nhập mã cấu hình, app hỏi app AMIS
+ * trên máy xin quyền, rồi mang `tenantid` sang trang QL đổi lấy link site.
  *
- *   LMS ──(1) amis://get-token?redirect_uri=…&state=…──▶ AMIS
- *   AMIS ─(2) vnrlms://applms/amis-callback?token=…&state=…──▶ LMS
- *   LMS ──(3) POST trang QL {tokenkey, tenantid}──▶ BE VNR
- *   BE  ─(4) {link, sid, tenantid}──▶ LMS
- *   LMS ──(5) POST <link>/auth/saas/index.php?sid=…──▶ site LMS  ✅ đã đăng nhập
+ *   LMS ──(1) misa.amis.vn://lms?source=ailearning ─────────────▶ AMIS
+ *   AMIS ─(2) vnrlms://applms/amis-callback?tenantid=…&sid=… ───▶ LMS
+ *   LMS ──(3) POST trang QL {tenantid} ─────────────────────────▶ BE VNR
+ *   BE  ─(4) {link, sid, tenantid} ─────────────────────────────▶ LMS
+ *   LMS ──(5) POST <link>/auth/saas/index.php?sid=… ───────────▶ site LMS ✅
  *
- * Bước (5) DÙNG CHUNG đường đi với deep link của kịch bản B — hai kịch bản hội
- * tụ về đúng một điểm, xem App.tsx#applyAmisSession.
+ * Bước (5) dùng chung đường đi với deep link của kịch bản B — hai kịch bản hội
+ * tụ về đúng một điểm, xem App.tsx#applySession.
  *
- * ⚠️ Toàn bộ giá trị cần MISA/BE cung cấp nằm ở ./amisConfig.js, không nằm ở
- * file này.
+ * ⚠️ Mọi giá trị cần MISA/BE cung cấp nằm ở ./amisConfig.js, không nằm ở đây.
  */
 
-/* ────────────────────────────────────────────────────────────────────────────
- * Phát hiện app AMIS
- * ──────────────────────────────────────────────────────────────────────────── */
+/* ── Phát hiện app AMIS ───────────────────────────────────────────────────── */
 
 /**
  * Máy có cài app AMIS không. Trả một giá trị của AMIS_DETECT.
  *
- * Mỗi nền tảng một cách hỏi, vì MISA cấp hai loại định danh khác nhau:
- *
- * - **iOS**: `canOpenURL('misa.amis.vn://')`, với điều kiện
- *   `LSApplicationQueriesSchemes` trong Info.plist đã khai scheme đó — thiếu
- *   khai thì iOS trả `false` bất kể máy có cài hay không.
- *
- * - **Android**: hỏi `PackageManager` theo package name `vn.com.misa.amis` qua
- *   module native. KHÔNG dùng `canOpenURL('https://misajsc.amis.vn')` được vì
- *   trình duyệt nào cũng nhận link https nên kết quả luôn `true`.
- *   Bản build chưa có module native ⇒ `UNKNOWN` (không phải `NO`), để tầng
- *   trên vẫn hiện nút cho người dùng bấm thay vì kết luận sai là chưa cài.
+ * - **iOS**: `canOpenURL('misa.amis.vn://')` — đòi `LSApplicationQueriesSchemes`
+ *   trong Info.plist, thiếu khai thì luôn `false` bất kể máy có cài hay không.
+ * - **Android**: hỏi `PackageManager` qua module native. Không dùng được
+ *   `canOpenURL` vì trình duyệt nào cũng nhận link https nên luôn `true`. Bản
+ *   build chưa có module ⇒ `UNKNOWN` (không phải `NO`), để tầng trên vẫn hiện
+ *   nút thay vì kết luận sai là chưa cài.
  */
 export async function isAmisInstalled() {
     if (!isAmisConfigured()) {
@@ -92,13 +83,9 @@ export async function isAmisInstalled() {
 }
 
 /**
- * Mở một URL của AMIS.
- *
- * Trên Android đi qua module native với `setPackage('vn.com.misa.amis')` nên
- * intent bị khoá vào đúng app AMIS, **không bao giờ rơi ra trình duyệt** — và
- * nhờ vậy không phụ thuộc việc MISA đã xác thực App Link (`assetlinks.json`)
- * hay chưa, thứ mà link https rất dễ vướng trên Android 12+.
- * Trên iOS custom scheme vốn đã trỏ thẳng vào app nên dùng `Linking` là đủ.
+ * Mở một URL của AMIS. Android đi qua module native (`setPackage`) nên intent
+ * bị khoá vào đúng app AMIS, không rơi ra trình duyệt; iOS dùng custom scheme
+ * nên `Linking` là đủ.
  */
 export async function openAmisUrl(url) {
     if (!url) {
@@ -115,18 +102,15 @@ export async function openAmisUrl(url) {
     }
 }
 
-/* ────────────────────────────────────────────────────────────────────────────
- * `state` — chống callback giả mạo
- * ──────────────────────────────────────────────────────────────────────────── */
+/* ── `state` — chống callback giả mạo (hiện MISA không dùng) ──────────────── */
 
 /**
  * Sinh chuỗi ngẫu nhiên cho tham số `state`.
  *
- * ⚠️ NỢ KỸ THUẬT (task T2.3): repo chưa có nguồn ngẫu nhiên mã hoá nào, đây là
- * `Math.random()` nên ĐOÁN ĐƯỢC về mặt lý thuyết. Đủ để chặn callback lạc và
- * callback lặp, KHÔNG đủ để chặn một app độc hại cùng máy cố tình đoán.
- * Muốn siết: cài `react-native-get-random-values` rồi thay đúng thân hàm này —
- * không chỗ nào khác phụ thuộc cách sinh.
+ * ⚠️ NỢ KỸ THUẬT (T2.3): `Math.random()` nên đoán được về mặt lý thuyết. Đủ để
+ * chặn callback lạc và callback lặp, KHÔNG đủ để chặn app độc hại cùng máy cố
+ * tình đoán. Siết lại thì cài `react-native-get-random-values` và thay đúng
+ * thân hàm này — không chỗ nào khác phụ thuộc cách sinh.
  */
 export function generateState() {
     let out = '';
@@ -143,9 +127,8 @@ export async function rememberState(state) {
 }
 
 /**
- * Đối chiếu `state` trong callback.
- * Đúng một lần: đối chiếu xong là xoá, dù đúng hay sai — callback thứ hai với
- * cùng `state` sẽ bị từ chối.
+ * Đối chiếu `state` trong callback. Dùng đúng một lần: đối chiếu xong là xoá dù
+ * đúng hay sai, nên callback thứ hai cùng `state` sẽ bị từ chối.
  */
 export async function verifyState(state, now) {
     const [saved, savedAt] = await Promise.all([
@@ -167,9 +150,7 @@ export async function verifyState(state, now) {
     return current - at <= AMIS_TIMING.stateTtlMs;
 }
 
-/* ────────────────────────────────────────────────────────────────────────────
- * Bước (1) — gọi sang AMIS xin token
- * ──────────────────────────────────────────────────────────────────────────── */
+/* ── Bước (1) — gọi sang AMIS xin quyền ───────────────────────────────────── */
 
 const appendParam = (parts, name, value) => {
     if (!name || !value) {
@@ -181,17 +162,12 @@ const appendParam = (parts, name, value) => {
 };
 
 /**
- * Dựng URL deep link gọi sang AMIS xin quyền. Thuần — không đụng Linking.
+ * Dựng URL deep link xin quyền. Thuần — không đụng Linking.
+ *   iOS     -> misa.amis.vn://lms?source=ailearning
+ *   Android -> https://misajsc.amis.vn/lms?source=ailearning
  *
- * Chuỗi chốt với MISA:
- *     iOS     -> misa.amis.vn://lms?source=ailearning
- *     Android -> https://misajsc.amis.vn/lms?source=ailearning
- *
- * Gốc URL khác nhau theo nền tảng nên đi qua `joinAmisUrl` chứ không tự ghép
- * chuỗi. Tham số nào có tên rỗng trong `AMIS_GETTOKEN.params` thì tự bị bỏ —
- * hiện MISA chỉ nhận `source`, phần còn lại nằm đó cho tương lai.
- *
- * Trả '' khi chưa cấu hình gốc URL AMIS.
+ * Tham số nào có tên rỗng trong `AMIS_GETTOKEN.params` thì tự bị bỏ. Trả '' khi
+ * chưa cấu hình gốc URL AMIS.
  */
 export function buildGetTokenUrl({state = '', lang = ''} = {}) {
     const base = joinAmisUrl(AMIS_GETTOKEN.path || '');
@@ -209,17 +185,16 @@ export function buildGetTokenUrl({state = '', lang = ''} = {}) {
 }
 
 /**
- * Mở app AMIS để xin quyền.
- * Ghi mốc thời gian thử để lần khởi động sau không tự động gửi lại ngay
- * (chống ping-pong giữa hai app) — xem `shouldAutoRequestToken`.
+ * Mở app AMIS để xin quyền. Ghi mốc thời gian thử cho `shouldAutoRequestToken`
+ * (backoff hiện tắt, nhưng vẫn ghi để bật lại được bất cứ lúc nào).
  */
 export async function requestTokenKey({lang = ''} = {}) {
     if (!isAmisConfigured()) {
         return {ok: false, error: LOOKUP_ERROR.CONFIG};
     }
-    // MISA không nhận `state` (xem amisConfig mục 2) ⇒ không sinh, không lưu.
-    // Sinh rồi bỏ đó thì lần sau còn `state` cũ trong MMKV, mà bên nhận lại
-    // không đối chiếu — vừa vô ích vừa gây hiểu nhầm khi đọc storage lúc debug.
+    // MISA không nhận `state` ⇒ không sinh, không lưu. Sinh rồi bỏ đó thì lần
+    // sau còn `state` cũ trong MMKV mà không ai đối chiếu — vừa vô ích vừa gây
+    // hiểu nhầm khi đọc storage lúc gỡ lỗi.
     const sendsState = Boolean(AMIS_GETTOKEN.params?.state);
     const state = sendsState ? generateState() : '';
     if (sendsState) {
@@ -229,8 +204,8 @@ export async function requestTokenKey({lang = ''} = {}) {
     const url = buildGetTokenUrl({state, lang});
     const opened = await openAmisUrl(url);
     if (!opened) {
-        // Máy chưa cài AMIS, hoặc AMIS không nhận URL này (bản cũ chưa hỗ trợ
-        // `gettoken`). Không phân biệt được từ phía app nên gộp làm một.
+        // Chưa cài AMIS, hoặc AMIS không nhận URL này — từ phía app không phân
+        // biệt được nên gộp làm một.
         return {ok: false, error: LOOKUP_ERROR.UNKNOWN};
     }
     return {ok: true, state, url};
@@ -247,13 +222,11 @@ export async function shouldAutoRequestToken(now) {
     return current - at >= AMIS_TIMING.retryBackoffMs;
 }
 
-/* ────────────────────────────────────────────────────────────────────────────
- * Bước (2) — bóc callback từ AMIS
- * ──────────────────────────────────────────────────────────────────────────── */
+/* ── Bước (2) — bóc callback từ AMIS ──────────────────────────────────────── */
 
 export const LINK_TYPE = {
-    HOME: 'home', // vnrlms://applms/home/<url>  — kịch bản B, React Navigation lo
-    CALLBACK: 'callback', // vnrlms://applms/amis-callback?…   — kịch bản A, file này lo
+    HOME: 'home', // vnrlms://applms/home/<url> — kịch bản B, React Navigation lo
+    CALLBACK: 'callback', // vnrlms://applms/amis-callback?… — kịch bản A
     UNKNOWN: 'unknown',
 };
 
@@ -261,8 +234,8 @@ export const LINK_TYPE = {
  * Đọc query string thành object, khoá hạ về chữ thường.
  *
  * Cố tình KHÔNG dùng `new URL()`: custom scheme không phải "special scheme"
- * theo chuẩn WHATWG nên cách phân tách host/path khác với http(s), dễ lệch
- * giữa các bản polyfill. Tách tay thì hành vi cố định, không phụ thuộc ai.
+ * theo chuẩn WHATWG nên cách tách host/path khác http(s), dễ lệch giữa các bản
+ * polyfill. Tách tay thì hành vi cố định.
  */
 function parseQueryString(search) {
     const out = {};
@@ -285,11 +258,11 @@ function parseQueryString(search) {
                 key = decodeURIComponent(rawKey.replace(/\+/g, ' '));
                 value = decodeURIComponent(rawValue.replace(/\+/g, ' '));
             } catch (_e) {
-                // Chuỗi encode hỏng: giữ nguyên bản thô còn hơn vứt cả link.
+                // Chuỗi encode hỏng: giữ bản thô còn hơn vứt cả link.
             }
             key = key.toLowerCase();
-            // Trùng khoá thì lấy giá trị ĐẦU TIÊN — kẻ tấn công nối thêm tham số
-            // ở cuối sẽ không ghi đè được giá trị thật ở đầu.
+            // Trùng khoá thì lấy giá trị ĐẦU TIÊN — nối thêm tham số ở cuối sẽ
+            // không ghi đè được giá trị thật ở đầu.
             if (!Object.prototype.hasOwnProperty.call(out, key)) {
                 out[key] = value;
             }
@@ -308,10 +281,7 @@ const EMPTY_LINK = {
     error: '',
 };
 
-/**
- * Phân loại một deep link vào app và bóc tham số nếu là callback của AMIS.
- * Thuần, không side effect — đây là hàm có unit test dày nhất của luồng này.
- */
+/** Phân loại deep link vào app và bóc tham số nếu là callback của AMIS. Thuần. */
 export function parseAmisLink(rawUrl) {
     const url = String(rawUrl || '').trim();
     if (!url) {
@@ -323,7 +293,7 @@ export function parseAmisLink(rawUrl) {
     }
     const rest = url.slice(prefix.length);
     const slash = rest.indexOf('/');
-    // Chưa có '/' nghĩa là chỉ có host, không có path ⇒ không phải link ta xử lý.
+    // Không có '/' nghĩa là chỉ có host ⇒ không phải link ta xử lý.
     const afterHost = slash === -1 ? '' : rest.slice(slash + 1);
     const q = afterHost.indexOf('?');
     const path = (q === -1 ? afterHost : afterHost.slice(0, q)).replace(
@@ -334,8 +304,8 @@ export function parseAmisLink(rawUrl) {
 
     const lowerPath = path.toLowerCase();
     if (lowerPath !== AMIS_CALLBACK.path.toLowerCase()) {
-        // `home/<url>` do React Navigation `linking` xử lý, ở đây chỉ nhận diện
-        // để bên gọi biết mà bỏ qua chứ không bóc tách gì thêm.
+        // `home/<url>` do React Navigation `linking` xử lý — ở đây chỉ nhận
+        // diện để bên gọi biết mà bỏ qua, không bóc tách gì thêm.
         const type =
             lowerPath === 'home' || lowerPath.indexOf('home/') === 0
                 ? LINK_TYPE.HOME
@@ -376,9 +346,7 @@ export function classifyCallbackError(rawError) {
     return LOOKUP_ERROR.UNKNOWN;
 }
 
-/* ────────────────────────────────────────────────────────────────────────────
- * Bước (3)(4) — đổi token key lấy link site LMS ở trang quản lý VNR
- * ──────────────────────────────────────────────────────────────────────────── */
+/* ── Bước (3)(4) — đổi `tenantid` lấy link site ở trang QL VNR ────────────── */
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -392,8 +360,7 @@ async function mockLookup(payload) {
         ok: true,
         mocked: true,
         link: r.link || '',
-        // Ưu tiên giá trị AMIS vừa gửi sang, thiếu mới lấy của mock — nhờ vậy
-        // sửa tham số lúc test là thấy nó chảy đúng qua cả luồng.
+        // Ưu tiên giá trị AMIS vừa gửi sang, thiếu mới lấy của mock.
         sid: payload.sid || r.sid || '',
         tenantid: payload.tenantid || r.tenantid || '',
         lang: payload.lang || r.lang || '',
@@ -402,10 +369,40 @@ async function mockLookup(payload) {
 }
 
 /**
- * Gọi trang QL đổi `token key` lấy `{link, sid, tenantid}`.
+ * Đọc field theo đường dẫn lồng: `readPath(json, 'Data.Link')`.
+ * Null-safe vì API trả `Data: null` khi không tìm thấy tenant.
+ * Tên rỗng ⇒ '' (field API không trả, bên gọi tự có đường lùi).
+ */
+function readPath(source, path) {
+    if (!path || !source) {
+        return '';
+    }
+    const parts = String(path).split('.');
+    let cur = source;
+    for (let i = 0; i < parts.length; i++) {
+        if (cur === null || typeof cur !== 'object') {
+            return '';
+        }
+        cur = cur[parts[i]];
+    }
+    return cur === null || cur === undefined ? '' : cur;
+}
+
+/**
+ * Thay `{tenantid}` / `{sid}` / `{userid}` trong URL bằng giá trị thật.
+ * `encodeURIComponent` để giá trị lạ không phá cấu trúc đường dẫn.
+ */
+function buildLookupUrl(template, data) {
+    return String(template || '').replace(/\{(tenantid|sid|userid)\}/g, (_m, key) =>
+        encodeURIComponent(data[key] || ''),
+    );
+}
+
+/**
+ * Gọi trang QL đổi `tenantid` lấy `{link, sid, tenantid}`.
  *
- * Mọi lỗi đều được quy về một mã trong LOOKUP_ERROR — bên gọi không phải biết
- * gì về HTTP. Không nhánh nào để người dùng kẹt màn hình chờ.
+ * Mọi lỗi đều quy về một mã trong LOOKUP_ERROR — bên gọi không phải biết gì về
+ * HTTP, và không nhánh nào để người dùng kẹt màn hình chờ.
  */
 export async function lookupTenant(payload = {}) {
     const data = {
@@ -423,19 +420,24 @@ export async function lookupTenant(payload = {}) {
         return {ok: false, error: LOOKUP_ERROR.CONFIG};
     }
 
+    const method = (VNR_TENANT_LOOKUP.method || 'POST').toUpperCase();
+    const sendsBody = method !== 'GET' && method !== 'HEAD';
+
     const req = VNR_TENANT_LOOKUP.request || {};
     const body = {};
-    if (req.tokenKey) {
-        body[req.tokenKey] = data.tokenKey;
-    }
-    if (req.tenantId) {
-        body[req.tenantId] = data.tenantid;
-    }
-    if (req.sid) {
-        body[req.sid] = data.sid;
-    }
-    if (req.userId) {
-        body[req.userId] = data.userid;
+    if (sendsBody) {
+        if (req.tokenKey) {
+            body[req.tokenKey] = data.tokenKey;
+        }
+        if (req.tenantId) {
+            body[req.tenantId] = data.tenantid;
+        }
+        if (req.sid) {
+            body[req.sid] = data.sid;
+        }
+        if (req.userId) {
+            body[req.userId] = data.userid;
+        }
     }
 
     const controller = new AbortController();
@@ -444,15 +446,20 @@ export async function lookupTenant(payload = {}) {
         VNR_TENANT_LOOKUP.timeoutMs,
     );
     try {
-        const res = await fetch(VNR_TENANT_LOOKUP.url, {
-            method: VNR_TENANT_LOOKUP.method || 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-            },
-            body: JSON.stringify(body),
+        const options = {
+            method,
+            headers: {Accept: 'application/json'},
             signal: controller.signal,
-        });
+        };
+        // GET kèm body là sai chuẩn và một số proxy sẽ chặn thẳng.
+        if (sendsBody) {
+            options.headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(body);
+        }
+        const res = await fetch(
+            buildLookupUrl(VNR_TENANT_LOOKUP.url, data),
+            options,
+        );
         if (res.status === 404) {
             return {ok: false, error: LOOKUP_ERROR.NOTFOUND};
         }
@@ -464,15 +471,35 @@ export async function lookupTenant(payload = {}) {
         }
         const json = await res.json();
         const map = VNR_TENANT_LOOKUP.response || {};
-        const readField = name => (name && json ? json[name] || '' : '');
-        const failure = readField(map.error);
-        if (failure) {
-            return {ok: false, error: normalizeLookupError(failure)};
+        const readField = name => readPath(json, name);
+        // API báo lỗi trong THÂN JSON chứ không bằng mã HTTP: không tìm thấy
+        // tenant vẫn trả 200 kèm `IsSuccess:false, Message:"TenantNotFound"`.
+        //
+        // ⚠️ Phải xét `success` TRƯỚC: lúc thành công `Message` mang giá trị
+        // "Success", đọc thẳng nó như lỗi là chuyến nào cũng hỏng.
+        if (map.success) {
+            if (!readField(map.success)) {
+                return {
+                    ok: false,
+                    error: normalizeLookupError(readField(map.error)),
+                };
+            }
+        } else {
+            const failure = readField(map.error);
+            if (failure) {
+                return {ok: false, error: normalizeLookupError(failure)};
+            }
         }
-        const link = String(readField(map.link) || '');
+        // ⚠️ Ca NGHIỆP VỤ chứ không phải sự cố: đơn vị chưa mở Elearning.
+        //
+        // `link` là điều kiện DUY NHẤT. API còn trả `Status`/`ExpirationDate`
+        // nhưng cố tình bỏ qua: `UnActive` dành cho tenant nội bộ, khách ngoài
+        // luôn `Active` — chặn theo `Status` chỉ khoá mất nhóm nội bộ.
+        //
+        // `.trim()` là chỗ dễ bỏ sót nhất: link toàn khoảng trắng lọt qua thì
+        // WebView nạp ' /auth/saas/index.php' — hỏng ở rất xa chỗ gây lỗi.
+        const link = String(readField(map.link) || '').trim();
         if (!link) {
-            // BE trả 200 nhưng không có link ⇒ chưa có bản ghi cho token key này
-            // (case T0.5: người dùng cài app thẳng từ store, AMIS chưa đẩy gì lên).
             return {ok: false, error: LOOKUP_ERROR.NOTFOUND};
         }
         return {
@@ -491,13 +518,27 @@ export async function lookupTenant(payload = {}) {
     }
 }
 
-/** Quy mã lỗi BE trả về thành mã nội bộ. Lạ thì về `unknown`. */
+/**
+ * Quy mã lỗi BE trả về thành mã nội bộ. Lạ thì về `unknown`.
+ *
+ * ⚠️ Danh sách khớp cho `NOTFOUND` là PHỎNG ĐOÁN — BE chưa chốt mã lỗi (T0.4).
+ * Cố tình nhận rộng: rơi sai vào `unknown` sẽ hiện "Không xác thực được với
+ * AMIS" thay cho "đơn vị chưa mở Elearning", tức sai hẳn nguyên nhân và còn
+ * mời người dùng thử lại một việc không bao giờ xong.
+ */
 export function normalizeLookupError(raw) {
     const value = String(raw || '').toLowerCase();
     if (value.indexOf('expire') > -1) {
         return LOOKUP_ERROR.EXPIRED;
     }
-    if (value.indexOf('not_found') > -1 || value.indexOf('notfound') > -1) {
+    if (
+        value.indexOf('not_found') > -1 ||
+        value.indexOf('notfound') > -1 ||
+        value.indexOf('not_exist') > -1 ||
+        value.indexOf('notexist') > -1 ||
+        value.indexOf('no_tenant') > -1 ||
+        value.indexOf('no_data') > -1
+    ) {
         return LOOKUP_ERROR.NOTFOUND;
     }
     if (value.indexOf('deni') > -1) {
@@ -506,14 +547,9 @@ export function normalizeLookupError(raw) {
     return LOOKUP_ERROR.UNKNOWN;
 }
 
-/* ────────────────────────────────────────────────────────────────────────────
- * Dọn dẹp
- * ──────────────────────────────────────────────────────────────────────────── */
+/* ── Dọn dẹp ─────────────────────────────────────────────────────────────── */
 
-/**
- * Xoá mọi dấu vết AMIS. Gọi khi người dùng đăng xuất thủ công, để lần sau bấm
- * "Đăng nhập bằng AMIS" chạy lại được từ đầu (kể cả khi backoff chưa hết hạn).
- */
+/** Xoá mọi dấu vết AMIS. Gọi khi người dùng đăng xuất thủ công. */
 export async function clearAmisSession() {
     await Promise.all([
         deleteData(AMIS_KEYS.state),

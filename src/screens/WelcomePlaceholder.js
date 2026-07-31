@@ -25,6 +25,7 @@ import { setAppLanguage } from '../i18n';
 import ActionGridModal from '../components/ActionGridModal';
 import InfoModal from '../components/InfoModal';
 import { AMIS_PHASE } from '../services/useAmisLogin';
+import { errorMessageKey } from '../services/amisConfig';
 
 /**
  * Màn mặc định khi chưa có URL LMS (chưa nhập link / chưa quét QR).
@@ -87,11 +88,10 @@ export default function WelcomePlaceholder(props) {
             ? t('amis.exchanging')
             : t('amis.waiting');
     // Mã lỗi từ useAmisLogin ('timeout', 'denied', …) -> khoá i18n tương ứng.
-    const amisErrorKey = props.amisError
-        ? 'amis.error' +
-          props.amisError.charAt(0).toUpperCase() +
-          props.amisError.slice(1)
-        : '';
+    // Lưu ý: có lỗi KHÔNG bao giờ tới đây — `notfound` (đơn vị chưa mở
+    // Elearning) được báo bằng Alert rồi thả về màn này sạch, xem
+    // ALERT_ONLY_ERRORS trong amisConfig.
+    const amisErrorKey = errorMessageKey(props.amisError);
 
     const guideLines = [
         t('welcome.guideStep1'),
@@ -173,7 +173,10 @@ export default function WelcomePlaceholder(props) {
                 {Boolean(amisErrorKey) && !amisBusy && (
                     <View style={styles.amisErrorBox}>
                         <Text style={styles.amisErrorText}>{t(amisErrorKey)}</Text>
-                        {props.amisAvailable && (
+                        {/* Có lỗi mà thử lại không bao giờ đổi được kết quả —
+                            vd đơn vị chưa mở Elearning. Lúc đó chỉ hiện thông
+                            báo, không mời người dùng bấm vô ích. */}
+                        {props.amisShowRetry && (
                             <TouchableOpacity
                                 onPress={() => {
                                     props.onDismissAmisError?.();

@@ -17,7 +17,8 @@ import {
   View,
   Keyboard,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import Scanner from './Scanner';
 import WelcomePlaceholder from './WelcomePlaceholder';
@@ -194,8 +195,34 @@ class HomeView extends Component {
             'change',
             this._onOneSignalUserOrSubscriptionChanged,
         );
-        OneSignal.Notifications.requestPermission(false).catch(() => {});
+        this._requestNotificationPermission();
         this._syncOneSignalIdToState();
+    }
+
+    /**
+     * Xin quyền hiện thông báo, rồi báo lên App.tsx là đã trả lời xong — tín
+     * hiệu đó mở khoá cho luồng tự mở AMIS.
+     *
+     * ⚠️ Chỉ báo trên iOS. Android do App.tsx hỏi bằng `PermissionsAndroid` và
+     * tự báo; gọi ở đây sẽ mở khoá SỚM vì lời gọi này thường trả về ngay trong
+     * lúc hộp thoại kia còn đang mở.
+     */
+    _reportNotifPromptSettled = () => {
+        if (Platform.OS === 'ios') {
+            this.props.onNotificationPromptSettled?.();
+        }
+    };
+
+    _requestNotificationPermission() {
+        try {
+            // `finally`: từ chối cũng phải mở khoá, không thì kẹt ở màn Welcome.
+            OneSignal.Notifications.requestPermission(false)
+                .catch(() => {})
+                .finally(this._reportNotifPromptSettled);
+        } catch (_e) {
+            // Ném đồng bộ (OneSignal chưa sẵn sàng) — vẫn phải mở khoá.
+            this._reportNotifPromptSettled();
+        }
     }
     handleGoBack = () => {
         const ref = this.webViewRef.current;
@@ -343,7 +370,13 @@ class HomeView extends Component {
         this._keyboardHideSub = Keyboard.addListener('keyboardDidHide', () => {
             this.setState({keyBoard: false});
         });
-        this._setupOneSignal();
+        try {
+            this._setupOneSignal();
+        } catch (_e) {
+            // OneSignal hỏng thì push không chạy, nhưng KHÔNG được kéo theo luồng
+            // AMIS: thiếu tín hiệu này là app đứng mãi ở màn Welcome.
+            this._reportNotifPromptSettled();
+        }
     }
 
     componentDidUpdate(prevProps) {
@@ -395,7 +428,8 @@ class HomeView extends Component {
     handleSubmitManualUrl = async (rawInput) => {
         const {t} = this.props;
         const raw = (rawInput || '').trim();
-        // Ô nhập chấp nhận CẢ link lẫn "mã" (base64 giải ra link). Ưu tiên coi là link; nếu không phải link thì thử giải mã base64 để ra link.
+        // Ô nhập chấp nhận CẢ link lẫn "mã" (base64 giải ra link). Ưu tiên coi
+        // là link; không phải link thì thử giải mã base64.
         let input = raw;
         if (!Validate.isUrlValid(input)) {
             const decoded = base64ToText(raw).trim();
@@ -448,14 +482,13 @@ class HomeView extends Component {
     /**
      * URL của site LMS đang dùng cho phiên này.
      *
-     * ⚠️ KHÔNG đọc thẳng `this.state.url`: luồng deep link **không bao giờ ghi
-     * vào nó** (App.tsx chỉ set `props.redirectUrl` + lưu MMKV), nên trên máy vừa
-     * cài app — `componentDidMount` đọc MMKV lúc còn trống — `state.url` là `''`
-     * suốt phiên. Đó chính là nguyên nhân `new URL('')` ném `Invalid URL` khi
-     * bấm Đăng xuất.
+     * ⚠️ KHÔNG đọc thẳng `this.state.url`: luồng deep link không bao giờ ghi vào
+     * nó (App.tsx chỉ set `props.redirectUrl` + lưu MMKV), nên trên máy vừa cài
+     * app `state.url` là `''` suốt phiên — từng làm `new URL('')` ném
+     * `Invalid URL` lúc bấm Đăng xuất.
      *
      * `currentUrl` để cuối vì nó là URL WebView đang mở, có thể đang ở domain
-     * ngoài (vd trang đăng nhập MISA) — dùng nó dựng URL đăng xuất sẽ trỏ sai site.
+     * ngoài (vd trang đăng nhập MISA) — dựng URL đăng xuất từ nó sẽ trỏ sai site.
      */
     resolveSiteUrl = () =>
         this.props.redirectUrl || this.state.url || this.state.currentUrl || '';
@@ -476,8 +509,7 @@ class HomeView extends Component {
     handleLogout = () => {
         const sesskey = this.state.session;
         // wwwroot suy từ chính URL đang dùng ⇒ đúng cho site cài ở gốc domain lẫn
-        // site nằm dưới sub-path bất kỳ (/lms, /daotao…). Thay cho việc dò '/lms/'
-        // trước đây — cách đó sai với khách hàng dùng sub-path tên khác.
+        // site nằm dưới sub-path bất kỳ (/lms, /daotao…), không hard-code.
         const wwwroot = deriveWwwroot(this.resolveSiteUrl());
         const cleared = {
             session: '',
@@ -535,13 +567,11 @@ class HomeView extends Component {
     }
     render() {
         const {t} = this.props;
-        // Hiện nút "Quay về AMIS" khi phiên này gắn với AMIS.
-        //
-        // Web đã báo `auth` thì TIN WEB — đó là sự thật về phiên đang chạy.
-        // `props.fromAmis` (suy từ tham số deep link) chỉ là phỏng đoán lạc quan
-        // để dùng trong lúc CHƯA có tin từ web: vào bằng deep link kèm `sid` mà
-        // `sid` hỏng rồi người dùng đăng nhập tay thì phiên đó là 'manual', không
-        // phải AMIS — lấy `||` là nút vẫn hiện sai.
+        // Hiện nút "Quay về AMIS" khi phiên này gắn với AMIS. Web đã báo `auth`
+        // thì TIN WEB — đó là sự thật về phiên đang chạy; `props.fromAmis` (suy
+        // từ tham số deep link) chỉ là phỏng đoán dùng khi chưa có tin từ web.
+        // Vào bằng deep link mà `sid` hỏng rồi đăng nhập tay thì phiên là
+        // 'manual', không phải AMIS — lấy `||` là nút hiện sai.
         const cameFromAmis = this.state.authMethod
             ? this.state.authMethod === 'saas'
             : Boolean(this.props.fromAmis);
@@ -637,7 +667,7 @@ class HomeView extends Component {
                             setScanQRCode={(data) => this.setState({scanQRCode:data})}
                             onSubmitUrl={this.handleSubmitManualUrl}
                             initialUrl={this.state.welcomeInitialUrl}
-                            amisAvailable={this.props.amisAvailable}
+                            amisShowRetry={this.props.amisShowRetry}
                             amisShowLoginButton={this.props.amisShowLoginButton}
                             amisBusy={this.props.amisBusy}
                             amisPhase={this.props.amisPhase}

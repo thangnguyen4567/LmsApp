@@ -3,14 +3,13 @@ import {Linking, NativeModules, Platform, TurboModuleRegistry} from 'react-nativ
 /**
  * Cầu nối tới module native `AmisDetect` (chỉ có trên Android).
  *
- * Vì sao cần: MISA yêu cầu kiểm tra AMIS đã cài hay chưa **theo package name**
- * `vn.com.misa.amis`, mà `Linking` của React Native chỉ làm việc với URL.
- * Xem android/app/src/main/java/com/lms/AmisDetectModule.kt
+ * Cần vì MISA yêu cầu kiểm tra AMIS đã cài hay chưa **theo package name**, mà
+ * `Linking` chỉ làm việc với URL. Xem
+ * android/app/src/main/java/com/lms/AmisDetectModule.kt
  *
  * ⚠️ Module nằm trong chính app (không phải package npm) nên **phải build lại
- * Android** thì JS mới thấy. Toàn bộ file này được viết để khi KHÔNG có module
- * (bản build cũ, hoặc iOS) thì mọi thứ lùi về đúng hành vi trước đây thay vì
- * ném lỗi.
+ * Android** thì JS mới thấy. Cả file được viết để khi KHÔNG có module (bản build
+ * cũ, hoặc iOS) thì mọi thứ lùi về hành vi trước đây thay vì ném lỗi.
  */
 
 const NAME = 'AmisDetect';
@@ -19,8 +18,8 @@ function resolveNativeModule() {
     if (Platform.OS !== 'android') {
         return null;
     }
-    // Kiến trúc Mới (bridgeless) lấy qua TurboModuleRegistry; giữ NativeModules
-    // làm đường lùi cho trường hợp chạy ở chế độ cũ.
+    // Bridgeless lấy qua TurboModuleRegistry; NativeModules là đường lùi cho
+    // chế độ cũ.
     try {
         const viaTurbo = TurboModuleRegistry && TurboModuleRegistry.get(NAME);
         if (viaTurbo) {
@@ -41,7 +40,7 @@ export function hasAmisNativeModule() {
 
 /**
  * Máy đã cài `packageName` chưa.
- * Trả `null` khi KHÔNG kiểm tra được (iOS, hoặc chưa build lại Android) — cố ý
+ * Trả `null` khi KHÔNG kiểm tra được (iOS, hoặc Android chưa build lại) — cố ý
  * phân biệt với `false`, để tầng trên không kết luận nhầm là "chưa cài".
  */
 export async function isPackageInstalled(packageName) {
@@ -56,18 +55,14 @@ export async function isPackageInstalled(packageName) {
 }
 
 /**
- * Mở URL bằng ĐÚNG app chỉ định.
+ * Mở URL bằng ĐÚNG app chỉ định (`setPackage`), nên không phụ thuộc việc MISA
+ * đã xác thực App Link (`assetlinks.json`) hay chưa — điểm rất dễ vướng trên
+ * Android 12+.
  *
- * Có `setPackage` nên không phụ thuộc việc MISA đã xác thực App Link
- * (`assetlinks.json`) hay chưa — thứ mà link `https://misajsc.amis.vn` rất dễ
- * vướng trên Android 12+.
- *
- * ⚠️ Mở không được thì trả `false` và **KHÔNG làm gì cả** — cố tình không lùi
- * về `Linking.openURL`, vì link AMIS là link `https` nên đường lùi đó sẽ ném
- * người dùng chưa cài AMIS vào trình duyệt, chẳng giúp được gì mà còn khó hiểu.
- *
- * Chỉ khi hoàn toàn không có module native (bản build Android cũ) mới lùi về
- * `Linking` — lúc đó không còn lựa chọn nào khác.
+ * ⚠️ Mở không được thì trả `false` và KHÔNG làm gì cả. Cố tình không lùi về
+ * `Linking.openURL`: link AMIS là link https nên đường lùi đó sẽ ném người dùng
+ * chưa cài AMIS vào trình duyệt, chẳng giúp được gì mà còn khó hiểu. Chỉ khi
+ * hoàn toàn không có module native (bản build cũ) mới lùi về `Linking`.
  */
 export async function openUrlInApp(url, packageName) {
     if (!url) {

@@ -45,6 +45,7 @@
   },
   "amis": {
     "loginButton": "Sign in with AMIS",
+    "noticeTitle": "Notice",
     "waiting": "Waiting for confirmation from AMIS…",
     "exchanging": "Verifying with the system…",
     "errorTimeout": "No response from AMIS. Please try again.",
@@ -52,7 +53,7 @@
     "errorDenied": "You have not granted access to AILearning. You can try again or enter a configuration code.",
     "errorState": "This sign-in session is not valid. Please try again.",
     "errorExpired": "The authentication code has expired. Please try again.",
-    "errorNotfound": "We could not find your organization. Please contact your administrator.",
+    "errorNotfound": "Your company has not installed AILearning yet.",
     "errorNetwork": "Could not reach the server. Please check your connection and try again.",
     "errorConfig": "Signing in with AMIS is not available yet.",
     "errorUnknown": "Could not authenticate with AMIS. Please try again."

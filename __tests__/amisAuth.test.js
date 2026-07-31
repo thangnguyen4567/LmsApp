@@ -36,6 +36,9 @@ const {
     LOOKUP_ERROR,
     VNR_TENANT_LOOKUP,
     canDetectAmisInstalled,
+    canRetryAfter,
+    errorMessageKey,
+    isAlertOnlyError,
     getAmisBaseUrl,
     getAmisReturnUrl,
     getCallbackUrl,
@@ -399,12 +402,27 @@ describe('requestTokenKey — mở AMIS xin quyền', () => {
  * kiện cho `startAmisLogin` mở AMIS, nếu không thì không bao giờ thấy Alert.
  */
 describe('cờ gỡ lỗi tạm thời', () => {
-    test('bật Alert là đủ điều kiện mở AMIS dù chưa có endpoint trang QL', () => {
+    test('có endpoint thật là đủ, không phụ thuộc mock hay cờ gỡ lỗi', () => {
         const realMock = AMIS_MOCK.enabled;
         const realAlert = AMIS_DEBUG.alertCallbackParams;
         try {
             AMIS_MOCK.enabled = false;
-            expect(VNR_TENANT_LOOKUP.url).toBe(''); // vẫn đang chờ BE
+            AMIS_DEBUG.alertCallbackParams = false;
+            expect(VNR_TENANT_LOOKUP.url).toBeTruthy();
+            expect(isTenantLookupConfigured()).toBe(true);
+        } finally {
+            AMIS_MOCK.enabled = realMock;
+            AMIS_DEBUG.alertCallbackParams = realAlert;
+        }
+    });
+
+    test('mất endpoint thì Alert vẫn đủ để mở AMIS mà soi callback', () => {
+        const realMock = AMIS_MOCK.enabled;
+        const realAlert = AMIS_DEBUG.alertCallbackParams;
+        const realUrl = VNR_TENANT_LOOKUP.url;
+        try {
+            AMIS_MOCK.enabled = false;
+            VNR_TENANT_LOOKUP.url = '';
 
             AMIS_DEBUG.alertCallbackParams = true;
             expect(isTenantLookupConfigured()).toBe(true);
@@ -415,6 +433,7 @@ describe('cờ gỡ lỗi tạm thời', () => {
         } finally {
             AMIS_MOCK.enabled = realMock;
             AMIS_DEBUG.alertCallbackParams = realAlert;
+            VNR_TENANT_LOOKUP.url = realUrl;
         }
     });
 });
@@ -574,7 +593,16 @@ describe('isCallbackTimedOut', () => {
     });
 });
 
-describe('lookupTenant — tra thông tin tenant, khoá là tenantid', () => {
+describe('lookupTenant — nhánh MOCK (chỉ chạy khi chưa có endpoint)', () => {
+    // Mock tự nhường đường cho endpoint thật, nên phải gỡ url ra mới test được.
+    const realUrl = VNR_TENANT_LOOKUP.url;
+    beforeEach(() => {
+        VNR_TENANT_LOOKUP.url = '';
+    });
+    afterEach(() => {
+        VNR_TENANT_LOOKUP.url = realUrl;
+    });
+
     // MISA đã chốt: AMIS trả sid + tenantid + userid, KHÔNG có token key.
     // `tenantid` là thứ trang QL dùng để trả về URL site LMS.
     test('chỉ cần tenantid là tra được, không cần token key', async () => {
@@ -601,6 +629,278 @@ describe('lookupTenant — tra thông tin tenant, khoá là tenantid', () => {
         const res = await lookupTenant({tenantid: 'T001'});
         expect(res.ok).toBe(false);
         expect(res.error).toBe(LOOKUP_ERROR.NOTFOUND);
+    });
+});
+
+/**
+ * Hợp đồng với API QL Tenant thật:
+ *   GET .../api/Tenant/GetByTenantId/<tenantid>
+ *   {"IsSuccess":true,"Message":"Success","Data":{…,"Code":"…","Link":"https://…"}}
+ *
+ * Hai điểm dễ sai nhất, cả hai đều được khoá ở đây:
+ * - Không tìm thấy tenant vẫn trả **HTTP 200**, chỉ đổi `IsSuccess:false`.
+ * - `Message` mang "Success" lúc thành công, nên chỉ được đọc như lỗi SAU KHI
+ *   `IsSuccess` đã false.
+ *
+ * Dùng `fetch` giả: đây là hợp đồng với BE, không phải với mock.
+ */
+describe('API QL Tenant — hợp đồng thật', () => {
+    const realFetch = global.fetch;
+    let lastCall = null;
+
+    const answer = (body, status = 200) => {
+        global.fetch = jest.fn((url, options) => {
+            lastCall = {url, options};
+            return Promise.resolve({
+                ok: status >= 200 && status < 300,
+                status,
+                json: () => Promise.resolve(body),
+            });
+        });
+    };
+
+    // Bản sao rút gọn của response thật, giữ nguyên cách lồng.
+    const okBody = (link = 'https://elearning.vnresource.net') => ({
+        IsSuccess: true,
+        Message: 'Success',
+        Data: {Id: 141, Code: 'T-CODE', Status: 'UnActive', Link: link},
+    });
+
+    afterEach(() => {
+        global.fetch = realFetch;
+        lastCall = null;
+    });
+
+    test('gọi GET, tenantid nằm trong PATH, không kèm body', async () => {
+        answer(okBody());
+        await lookupTenant({tenantid: 'abc-123', sid: 'S1'});
+        expect(lastCall.url).toBe(
+            'https://lmsadminapi.vnresource.vn/api/Tenant/GetByTenantId/abc-123',
+        );
+        expect(lastCall.options.method).toBe('GET');
+        // GET kèm body là sai chuẩn, một số proxy chặn thẳng.
+        expect(lastCall.options.body).toBeUndefined();
+    });
+
+    test('tenantid lạ được encode, không phá cấu trúc đường dẫn', async () => {
+        answer(okBody());
+        await lookupTenant({tenantid: 'a/b?c=1'});
+        expect(lastCall.url).toContain('GetByTenantId/a%2Fb%3Fc%3D1');
+    });
+
+    test('đọc được link lồng trong Data, sid lấy từ deep link', async () => {
+        answer(okBody());
+        const res = await lookupTenant({tenantid: 'T1', sid: 'SID_DEEPLINK'});
+        expect(res.ok).toBe(true);
+        expect(res.link).toBe('https://elearning.vnresource.net');
+        expect(res.tenantid).toBe('T-CODE');
+        // API không trả sid ⇒ phải giữ nguyên sid AMIS vừa gửi sang.
+        expect(res.sid).toBe('SID_DEEPLINK');
+    });
+
+    test('Message="Success" KHÔNG được hiểu là lỗi', async () => {
+        // Đọc `Message` trước khi xét `IsSuccess` thì chuyến nào cũng hỏng.
+        answer(okBody());
+        const res = await lookupTenant({tenantid: 'T1'});
+        expect(res.ok).toBe(true);
+    });
+
+    const expectNotFound = async () => {
+        const res = await lookupTenant({tenantid: 'T404'});
+        expect(res.ok).toBe(false);
+        expect(res.error).toBe(LOOKUP_ERROR.NOTFOUND);
+    };
+
+    test('IsSuccess:false + TenantNotFound (HTTP vẫn 200)', async () => {
+        answer({IsSuccess: false, Message: 'TenantNotFound', Data: null});
+        await expectNotFound();
+    });
+
+    test('404 — URL thiếu hẳn tenantid', async () => {
+        answer({}, 404);
+        await expectNotFound();
+    });
+
+    test('body rỗng/sai cấu trúc -> unknown, KHÔNG phải notfound', async () => {
+        // Cố ý phân biệt: `IsSuccess:false + TenantNotFound` là câu trả lời hợp
+        // lệ của API ⇒ ca nghiệp vụ "chưa cài đặt AILearning". Còn body không
+        // đúng cấu trúc là API hỏng ⇒ báo lỗi kỹ thuật kèm nút Thử lại, chứ
+        // đừng nói với người dùng rằng công ty họ chưa cài — vừa sai vừa là ngõ cụt.
+        answer(null);
+        const res = await lookupTenant({tenantid: 'T404'});
+        expect(res.ok).toBe(false);
+        expect(res.error).toBe(LOOKUP_ERROR.UNKNOWN);
+    });
+
+    test('IsSuccess:true nhưng Data KHÔNG có Link', async () => {
+        answer({
+            IsSuccess: true,
+            Message: 'Success',
+            Data: {Id: 1, Code: 'T1', Link: null},
+        });
+        await expectNotFound();
+    });
+
+    test('Link chỉ có khoảng trắng cũng coi như không có', async () => {
+        // Bỏ `.trim()` thì ca này lọt qua, rồi WebView nạp ' /auth/saas/index.php'
+        // — hỏng ở rất xa chỗ gây lỗi.
+        answer(okBody('   '));
+        await expectNotFound();
+    });
+
+    test('BE báo lỗi bằng chữ — nhận nhiều biến thể, không rơi vào unknown', async () => {
+        const variants = [
+            'NOT_FOUND',
+            'tenant_not_exist',
+            'TenantNotExist',
+            'no_tenant',
+            'NO_DATA',
+        ];
+        for (let i = 0; i < variants.length; i++) {
+            expect(normalizeLookupError(variants[i])).toBe(
+                LOOKUP_ERROR.NOTFOUND,
+            );
+        }
+    });
+
+});
+
+/**
+ * Hai cách báo lỗi khác nhau — chọn sai là hoặc bỏ sót thông báo, hoặc để người
+ * dùng mắc ở màn hình không có đường ra.
+ */
+describe('cách báo lỗi: Alert-rồi-về-Welcome vs hộp lỗi tại chỗ', () => {
+    test('chưa mở Elearning -> Alert rồi về Welcome', () => {
+        // AMIS đã cấp quyền xong mà LMS không có link cho đơn vị ⇒ app hết việc
+        // làm được: không có gì để thử lại, cũng không có gì để chờ.
+        expect(isAlertOnlyError(LOOKUP_ERROR.NOTFOUND)).toBe(true);
+    });
+
+    test('các lỗi khác vẫn hiện hộp lỗi tại chỗ', () => {
+        [
+            LOOKUP_ERROR.CONFIG,
+            LOOKUP_ERROR.DENIED,
+            LOOKUP_ERROR.CANCELLED,
+            LOOKUP_ERROR.TIMEOUT,
+            LOOKUP_ERROR.NETWORK,
+            LOOKUP_ERROR.STATE,
+            LOOKUP_ERROR.EXPIRED,
+            LOOKUP_ERROR.UNKNOWN,
+        ].forEach(code => {
+            expect(isAlertOnlyError(code)).toBe(false);
+        });
+    });
+
+    test('không có lỗi thì không Alert gì', () => {
+        expect(isAlertOnlyError('')).toBe(false);
+        expect(isAlertOnlyError(undefined)).toBe(false);
+    });
+
+    test('errorMessageKey — một quy ước dùng chung cho hook và màn hình', () => {
+        expect(errorMessageKey(LOOKUP_ERROR.NOTFOUND)).toBe(
+            'amis.errorNotfound',
+        );
+        expect(errorMessageKey(LOOKUP_ERROR.CANCELLED)).toBe(
+            'amis.errorCancelled',
+        );
+        expect(errorMessageKey('')).toBe('');
+    });
+
+    test('tiêu đề Alert có ở cả hai ngôn ngữ', () => {
+        // Thiếu khoá này thì tiêu đề hộp thoại in ra 'amis.noticeTitle'.
+        const vi = require('../src/i18n/resources/vi.json');
+        const en = require('../src/i18n/resources/en.json');
+        expect(vi.amis.noticeTitle.length).toBeGreaterThan(0);
+        expect(en.amis.noticeTitle.length).toBeGreaterThan(0);
+    });
+});
+
+describe('nút "Thử lại" — ẩn với lỗi mà thử lại vô nghĩa', () => {
+    test('chưa mở Elearning / chưa cấu hình -> KHÔNG hiện', () => {
+        expect(canRetryAfter(LOOKUP_ERROR.NOTFOUND)).toBe(false);
+        expect(canRetryAfter(LOOKUP_ERROR.CONFIG)).toBe(false);
+    });
+
+    test('các lỗi do hoàn cảnh -> vẫn hiện', () => {
+        [
+            LOOKUP_ERROR.DENIED,
+            LOOKUP_ERROR.CANCELLED,
+            LOOKUP_ERROR.TIMEOUT,
+            LOOKUP_ERROR.NETWORK,
+            LOOKUP_ERROR.STATE,
+            LOOKUP_ERROR.EXPIRED,
+            LOOKUP_ERROR.UNKNOWN,
+        ].forEach(code => {
+            expect(canRetryAfter(code)).toBe(true);
+        });
+    });
+
+    test('không có lỗi thì không có gì để thử lại', () => {
+        expect(canRetryAfter('')).toBe(false);
+    });
+});
+
+/**
+ * Mọi mã lỗi phải có câu dịch ở CẢ HAI ngôn ngữ. Thiếu một khoá thì i18next hiện
+ * nguyên chuỗi khoá (`amis.errorNotfound`) ra giữa màn hình — lỗi chỉ QC thấy,
+ * không có exception nào.
+ */
+describe('mã lỗi ↔ khoá i18n', () => {
+    const vi = require('../src/i18n/resources/vi.json');
+    const en = require('../src/i18n/resources/en.json');
+
+    const keyOf = code =>
+        'error' + code.charAt(0).toUpperCase() + code.slice(1);
+
+    test('mỗi mã trong LOOKUP_ERROR đều có câu vi + en', () => {
+        Object.keys(LOOKUP_ERROR).forEach(name => {
+            const key = keyOf(LOOKUP_ERROR[name]);
+            expect(typeof vi.amis[key]).toBe('string');
+            expect(typeof en.amis[key]).toBe('string');
+            expect(vi.amis[key].length).toBeGreaterThan(0);
+            expect(en.amis[key].length).toBeGreaterThan(0);
+        });
+    });
+
+    test('câu "chưa mở Elearning" KHÔNG mời thử lại', () => {
+        // Câu chuẩn đang chờ nghiệp vụ cấp. Điều bất biến là: đã ẩn nút Thử lại
+        // thì câu chữ cũng không được nhắc tới việc thử lại.
+        expect(canRetryAfter(LOOKUP_ERROR.NOTFOUND)).toBe(false);
+        expect(vi.amis.errorNotfound.toLowerCase()).not.toContain('thử lại');
+        expect(en.amis.errorNotfound.toLowerCase()).not.toContain('try again');
+    });
+});
+
+/**
+ * `link` trang QL trả về là **wwwroot**, app tự ghép điểm vào. Đây là chỗ dễ sai
+ * nhất của cả luồng vì hai kiểu cài site cho ra hai dạng link khác nhau — mà sai
+ * thì biểu hiện là 404 hoặc màn trắng, không phải lỗi rõ ràng.
+ */
+describe('link trang QL trả về -> điểm vào đăng nhập SaaS', () => {
+    const {toSaasLoginUrl} = require('../src/components/amisDeepLink');
+    const ENTRY = '/auth/saas/index.php';
+
+    test('dữ liệu giả đang dùng dẫn tới đúng điểm vào', () => {
+        expect(toSaasLoginUrl(AMIS_MOCK.response.link)).toBe(
+            'https://elearning.vnresource.net' + ENTRY,
+        );
+    });
+
+    test('site cài ở GỐC domain — không nhân đôi dấu /', () => {
+        // Cả hai dạng đều phải ra một kết quả: BE trả kèm '/' cuối là chuyện
+        // thường, mà nhân đôi thành '//auth/saas' là 404.
+        expect(toSaasLoginUrl('https://elearning.vnresource.net')).toBe(
+            'https://elearning.vnresource.net' + ENTRY,
+        );
+        expect(toSaasLoginUrl('https://elearning.vnresource.net/')).toBe(
+            'https://elearning.vnresource.net' + ENTRY,
+        );
+    });
+
+    test('site cài dưới SUB-PATH — giữ nguyên sub-path', () => {
+        expect(toSaasLoginUrl('https://misajsc.amis.vn/lms')).toBe(
+            'https://misajsc.amis.vn/lms' + ENTRY,
+        );
     });
 });
 

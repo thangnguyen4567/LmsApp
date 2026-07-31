@@ -70,18 +70,35 @@ function HomeScreen({
   // Phiên này có phải vào từ app AMIS không (để hiện nút quay lại AMIS).
   const [fromAmis, setFromAmis] = useState(false);
 
+  /**
+   * Hộp thoại xin quyền thông báo đã được trả lời xong chưa — chốt chặn cho
+   * luồng tự mở AMIS. Không có nó thì hai việc chạy đua ngay giây đầu: popup
+   * quyền và popup "LMS muốn mở AMIS" đè lên nhau.
+   *
+   * Ai báo về: Android là chính effect dưới đây; iOS là HomeView, vì popup bên
+   * đó do OneSignal bật sau khi `OneSignal.initialize`.
+   */
+  const [notifPromptSettled, setNotifPromptSettled] = useState(false);
+  const markNotifPromptSettled = useCallback(() => {
+    setNotifPromptSettled(true);
+  }, []);
+
   useEffect(() => {
     if (Platform.OS === 'android') {
       PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-      ).catch(() => {});
+      )
+        .catch(() => {})
+        // `finally` chứ không phải `then`: bấm Từ chối, hoặc máy Android < 13
+        // không có quyền này, đều phải mở khoá.
+        .finally(markNotifPromptSettled);
     }
 
     const unsubscribe = NetInfo.addEventListener(state => {
       setIsConnected(Boolean(state.isConnected));
     });
     return () => unsubscribe();
-  }, []);
+  }, [markNotifPromptSettled]);
 
   // AMIS có thể gắn sid/tenantid vào query của chính deep link thay vì nhúng
   // trong URL đích. Rút ra thành chuỗi để dùng làm dependency ổn định cho
@@ -96,10 +113,10 @@ function HomeScreen({
 
   /**
    * ĐIỂM HỘI TỤ của cả hai kịch bản:
-   * - Kịch bản B: AMIS mở app bằng deep link kèm sẵn `sid`.
-   * - Kịch bản A: app tự xin token từ AMIS rồi đổi ở trang QL ra `link` + `sid`.
-   * Cả hai đều dừng ở đây với cùng bộ tham số, nên chỉ có một chỗ quyết định
-   * lưu gì xuống máy và nạp gì lên WebView.
+   * - B: AMIS mở app bằng deep link kèm sẵn `sid`.
+   * - A: app tự xin quyền từ AMIS rồi đổi ở trang QL ra `link` + `sid`.
+   * Cả hai dừng ở đây với cùng bộ tham số, nên chỉ có MỘT chỗ quyết định lưu gì
+   * xuống máy và nạp gì lên WebView.
    */
   const applySession = useCallback(
     (baseUrl: string, params: AmisParams, cameFromAmis: boolean) => {
@@ -124,9 +141,8 @@ function HomeScreen({
   /**
    * Kết thúc phiên deep link AMIS.
    *
-   * ⚠️ Phải xoá CẢ BA thứ cùng nhau. Bản trước chỉ xoá `redirectFromLink` nên
-   * `fromAmis` đọng lại tới hết đời app: đăng xuất rồi đăng nhập tay bằng tài
-   * khoản khác mà nút "Quay về AMIS" vẫn hiện.
+   * ⚠️ Phải xoá CẢ BA thứ cùng nhau. Sót `fromAmis` là nó đọng tới hết đời app:
+   * đăng xuất rồi đăng nhập tay tài khoản khác mà nút "Quay về AMIS" vẫn hiện.
    */
   const clearAmisRedirect = useCallback(() => {
     setRedirectFromLink('');
@@ -134,10 +150,12 @@ function HomeScreen({
     setFromAmis(false);
   }, []);
 
-  // Kịch bản A — máy chưa có phiên nào, app tự hỏi AMIS xin token.
-  // Toàn bộ tính năng tự ngủ khi src/services/amisConfig.js chưa được điền.
+  // Kịch bản A — máy chưa có phiên nào, app tự hỏi AMIS xin quyền.
+  // Tính năng tự ngủ khi src/services/amisConfig.js chưa được điền.
   const amis = useAmisLogin({
     lang: i18n.language,
+    // ⚠️ Chốt chặn: chưa trả lời xong hộp thoại quyền thông báo thì chưa mở AMIS.
+    ready: notifPromptSettled,
     onSession: useCallback(
       (session: AmisSession) => {
         applySession(
@@ -200,7 +218,7 @@ function HomeScreen({
           redirectUrl={redirectFromLink}
           amisTenantId={redirectTenantId}
           fromAmis={fromAmis}
-          amisAvailable={amis.amisAvailable}
+          amisShowRetry={amis.showRetry}
           amisShowLoginButton={amis.showLoginButton}
           amisBusy={amis.busy}
           amisPhase={amis.phase}
@@ -210,6 +228,7 @@ function HomeScreen({
           onCancelAmisLogin={amis.cancelAmisLogin}
           onDismissAmisError={amis.dismissError}
           onClearRedirectUrl={clearAmisRedirect}
+          onNotificationPromptSettled={markNotifPromptSettled}
         />
       ) : (
         <OfflineView />
