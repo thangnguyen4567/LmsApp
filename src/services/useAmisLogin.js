@@ -19,6 +19,7 @@ import {
     LINK_TYPE,
     classifyCallbackError,
     isAmisInstalled,
+    isCallbackRejected,
     lookupTenant,
     parseAmisLink,
     requestTokenKey,
@@ -54,7 +55,7 @@ function showCallbackAlert(parsed, rawUrl) {
         'userid: ' + (parsed.userid || '(rỗng)'),
         'sid: ' + (parsed.sid || '(rỗng)'),
     ];
-    ['tokenKey', 'lang', 'state', 'error'].forEach(key => {
+    ['tokenKey', 'lang', 'state', 'error', 'rejected'].forEach(key => {
         if (parsed[key]) {
             lines.push(key + ': ' + parsed[key]);
         }
@@ -190,6 +191,13 @@ export default function useAmisLogin(options = {}) {
                     goIdle('');
                     return;
                 }
+            }
+            // ⏳ `rejected=true` — hứng trước, AMIS chưa gửi. Xét TRƯỚC `error`
+            // và trước cả bước đòi `tenantid`: callback từ chối thì không mang
+            // dữ liệu, rơi xuống dưới sẽ bị quy oan thành `unknown`.
+            if (isCallbackRejected(parsed.rejected)) {
+                raiseError(LOOKUP_ERROR.DENIED);
+                return;
             }
             const denied = classifyCallbackError(parsed.error);
             if (denied) {

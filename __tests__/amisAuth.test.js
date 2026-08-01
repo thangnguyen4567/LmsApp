@@ -60,6 +60,7 @@ const {
     classifyCallbackError,
     clearAmisSession,
     generateState,
+    isCallbackRejected,
     lookupTenant,
     normalizeLookupError,
     parseAmisLink,
@@ -357,6 +358,55 @@ describe('parseAmisLink — phân loại deep link vào app', () => {
             'vnrlms://applms/amis-callback?sid=' + long,
         );
         expect(parsed.sid).toHaveLength(4096);
+    });
+});
+
+/**
+ * ⏳ `rejected` — hứng trước, AMIS chưa gửi tham số này.
+ *
+ * Hai bất biến phải giữ: (a) không có tham số thì mọi thứ chạy y như hôm nay;
+ * (b) chỉ đúng giá trị "đã từ chối" mới chặn — hiểu ngược `rejected=false` là
+ * khoá hết người dùng bình thường ngay ngày AMIS bật tham số này lên.
+ */
+describe('rejected — cờ người dùng từ chối cấp quyền', () => {
+    test('parseAmisLink bóc được tham số', () => {
+        const parsed = parseAmisLink(
+            'vnrlms://applms/amis-callback?rejected=true',
+        );
+        expect(parsed.type).toBe(LINK_TYPE.CALLBACK);
+        expect(parsed.rejected).toBe('true');
+        expect(isCallbackRejected(parsed.rejected)).toBe(true);
+    });
+
+    test('không có tham số -> KHÔNG phải từ chối (callback thường)', () => {
+        const parsed = parseAmisLink(
+            'vnrlms://applms/amis-callback?tenantid=T1&sid=S1',
+        );
+        expect(parsed.rejected).toBe('');
+        expect(isCallbackRejected(parsed.rejected)).toBe(false);
+    });
+
+    test('nhận true/1, không phân biệt hoa thường, bỏ khoảng trắng thừa', () => {
+        ['true', 'TRUE', 'True', '1', ' true '].forEach(v => {
+            expect(isCallbackRejected(v)).toBe(true);
+        });
+    });
+
+    test('rejected=false thì đi tiếp bình thường', () => {
+        // Bẫy kinh điển: coi "có mặt tham số" là true.
+        ['false', 'FALSE', '0', '', 'yes', undefined, null].forEach(v => {
+            expect(isCallbackRejected(v)).toBe(false);
+        });
+    });
+
+    test('báo bằng mã denied, và phải CÒN nút Thử lại', () => {
+        // Dùng chung mã với `error=access_denied` vì cùng một nghĩa; câu chữ lấy
+        // ở `amis.errorDenied` (đã có test khoá đủ khoá cho mọi mã lỗi).
+        expect(errorMessageKey(LOOKUP_ERROR.DENIED)).toBe('amis.errorDenied');
+        // Từ chối rồi vẫn có thể đổi ý ⇒ giữ nút Thử lại, và đừng đá về Welcome
+        // bằng Alert như ca "chưa cài đặt AILearning".
+        expect(canRetryAfter(LOOKUP_ERROR.DENIED)).toBe(true);
+        expect(isAlertOnlyError(LOOKUP_ERROR.DENIED)).toBe(false);
     });
 });
 

@@ -279,6 +279,7 @@ const EMPTY_LINK = {
     lang: '',
     state: '',
     error: '',
+    rejected: '',
 };
 
 /** Phân loại deep link vào app và bóc tham số nếu là callback của AMIS. Thuần. */
@@ -325,7 +326,27 @@ export function parseAmisLink(rawUrl) {
         lang: pick(names.lang),
         state: pick(names.state),
         error: pick(names.error),
+        rejected: pick(names.rejected),
     };
+}
+
+/**
+ * Người dùng đã bấm Từ chối ở popup cấp quyền AMIS chưa — đọc tham số
+ * `rejected` của callback.
+ *
+ * ⏳ HỨNG TRƯỚC: AMIS chưa gửi tham số này, nên hàm gần như luôn trả `false`.
+ * Vắng mặt hay giá trị lạ đều là `false` ⇒ luồng chạy y như hôm nay; ngày AMIS
+ * bắt đầu gửi thì tự nhận, không phải sửa gì.
+ *
+ * ⚠️ Chỉ đúng các giá trị trong `rejectedValues` mới tính là từ chối — kiểu
+ * "có mặt tham số là coi như true" sẽ hiểu ngược `rejected=false`.
+ */
+export function isCallbackRejected(rawValue) {
+    const value = String(rawValue || '').trim().toLowerCase();
+    if (!value) {
+        return false;
+    }
+    return (AMIS_CALLBACK.rejectedValues || []).indexOf(value) > -1;
 }
 
 /** Quy `error` trong callback về mã lỗi nội bộ để chọn đúng câu thông báo. */

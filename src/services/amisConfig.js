@@ -104,10 +104,20 @@ export const AMIS_CALLBACK = {
         lang: 'lang',
         state: 'state',
         error: 'error',
+        // ⏳ HỨNG TRƯỚC — AMIS chưa gửi tham số này. Có hay không đều chạy bình
+        // thường: vắng mặt ⇒ '' ⇒ mọi nhánh y như hôm nay.
+        rejected: 'rejected',
     },
 
     // Giá trị `error` nghĩa là người dùng bấm "Từ chối" ở popup cấp quyền AMIS.
     deniedValue: 'access_denied',
+
+    // Giá trị của `rejected` được coi là "người dùng đã từ chối". Đọc không phân
+    // biệt hoa thường. Nhận thêm '1' phòng AMIS gửi kiểu số.
+    //
+    // ⚠️ Chỉ đúng những giá trị này mới tính là từ chối — `rejected=false` phải
+    // đi tiếp như bình thường.
+    rejectedValues: ['true', '1'],
 };
 
 /* ── 4. ENDPOINT TRANG QUẢN LÝ VNR (T0.4 — đã có) ─────────────────────────────
