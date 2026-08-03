@@ -185,8 +185,9 @@ export function buildGetTokenUrl({state = '', lang = ''} = {}) {
 }
 
 /**
- * Mở app AMIS để xin quyền. Ghi mốc thời gian thử cho `shouldAutoRequestToken`
- * (backoff hiện tắt, nhưng vẫn ghi để bật lại được bất cứ lúc nào).
+ * Mở app AMIS để xin quyền. Dùng chung cho lượt tự động lúc khởi động lẫn nút
+ * bấm tay, nên KHÔNG đụng vào cờ một-lần ở đây — chỉ nhánh tự động mới đánh dấu
+ * (xem `markAmisAutoLaunched` trong useAmisLogin.js).
  */
 export async function requestTokenKey({lang = ''} = {}) {
     if (!isAmisConfigured()) {
@@ -200,7 +201,6 @@ export async function requestTokenKey({lang = ''} = {}) {
     if (sendsState) {
         await rememberState(state);
     }
-    await saveData(AMIS_KEYS.attemptedAt, String(Date.now()));
     const url = buildGetTokenUrl({state, lang});
     const opened = await openAmisUrl(url);
     if (!opened) {
@@ -211,15 +211,34 @@ export async function requestTokenKey({lang = ''} = {}) {
     return {ok: true, state, url};
 }
 
-/** Đã tự động thử gần đây chưa (chỉ áp cho lần TỰ ĐỘNG, nút bấm tay bỏ qua). */
-export async function shouldAutoRequestToken(now) {
-    const raw = await getData(AMIS_KEYS.attemptedAt);
-    const at = Number(raw || 0);
-    if (!at) {
-        return true;
+/**
+ * App đã từng TỰ ĐỘNG bay sang AMIS chưa. Nút bấm tay không tính.
+ *
+ * Lưu mốc thời gian chứ không lưu `'1'` — đọc thì chỉ cần biết có hay không,
+ * nhưng lúc soi storage để gỡ lỗi thì biết được nó xảy ra khi nào.
+ */
+export async function hasAutoLaunchedAmis() {
+    const raw = await getData(AMIS_KEYS.autoLaunched);
+    return Boolean(raw);
+}
+
+/**
+ * Đánh dấu đã dùng hết lượt tự động.
+ *
+ * Phải gọi TRƯỚC khi mở AMIS, không phải sau khi biết kết quả: app rời màn hình
+ * ngay sau đó và có thể bị hệ điều hành thu hồi luôn (ROM dọn nền hung như
+ * HyperOS/MIUI). Ghi sau ⇒ đúng những máy đó không bao giờ ghi được ⇒ mở app lần
+ * nào cũng bị đá sang AMIS.
+ *
+ * Nuốt lỗi: ghi hỏng thì cùng lắm lần sau hỏi lại một lần, không đáng để chặn cả
+ * luồng đăng nhập.
+ */
+export async function markAmisAutoLaunched() {
+    try {
+        await saveData(AMIS_KEYS.autoLaunched, String(Date.now()));
+    } catch (_e) {
+        // bỏ qua — xem giải thích ở trên
     }
-    const current = typeof now === 'number' ? now : Date.now();
-    return current - at >= AMIS_TIMING.retryBackoffMs;
 }
 
 /* ── Bước (2) — bóc callback từ AMIS ──────────────────────────────────────── */
@@ -570,12 +589,16 @@ export function normalizeLookupError(raw) {
 
 /* ── Dọn dẹp ─────────────────────────────────────────────────────────────── */
 
-/** Xoá mọi dấu vết AMIS. Gọi khi người dùng đăng xuất thủ công. */
+/**
+ * Xoá dấu vết của MỘT PHIÊN AMIS. Gọi khi người dùng đăng xuất thủ công.
+ *
+ * ⚠️ Cố ý KHÔNG xoá `AMIS_KEYS.autoLaunched`: lượt tự-mở-AMIS là một lần cho mỗi
+ * lần cài app. Xoá ở đây thì cứ đăng xuất là lại bị đá sang AMIS.
+ */
 export async function clearAmisSession() {
     await Promise.all([
         deleteData(AMIS_KEYS.state),
         deleteData(AMIS_KEYS.stateAt),
-        deleteData(AMIS_KEYS.attemptedAt),
         deleteData(AMIS_KEYS.tenantId),
     ]);
 }

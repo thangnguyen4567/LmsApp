@@ -60,13 +60,14 @@ const {
     classifyCallbackError,
     clearAmisSession,
     generateState,
+    hasAutoLaunchedAmis,
     isCallbackRejected,
     lookupTenant,
+    markAmisAutoLaunched,
     normalizeLookupError,
     parseAmisLink,
     rememberState,
     requestTokenKey,
-    shouldAutoRequestToken,
     verifyState,
 } = require('../src/services/amisAuth');
 
@@ -441,8 +442,14 @@ describe('requestTokenKey — mở AMIS xin quyền', () => {
         // gây hiểu nhầm cho người đọc MMKV lúc gỡ lỗi.
         expect(mockStore[AMIS_KEYS.state]).toBeUndefined();
         expect(mockStore[AMIS_KEYS.stateAt]).toBeUndefined();
-        // Mốc thời gian thử thì vẫn phải ghi — backoff dựa vào nó khi bật lại.
-        expect(mockStore[AMIS_KEYS.attemptedAt]).toBeTruthy();
+    });
+
+    test('KHÔNG tự đốt lượt tự-mở — nút bấm tay phải dùng lại được mãi', async () => {
+        // Hàm này dùng chung cho lượt tự động lẫn nút bấm tay. Nếu nó tự ghi cờ
+        // thì mỗi lần bấm nút lại đánh dấu "đã tự mở" — sai nghĩa, và sau này ai
+        // đảo thứ tự đọc/ghi sẽ sinh lỗi rất khó lần ra.
+        await requestTokenKey({lang: 'vi'});
+        expect(mockStore[AMIS_KEYS.autoLaunched]).toBeUndefined();
     });
 });
 
@@ -529,22 +536,27 @@ describe('state — chống callback giả mạo / lặp', () => {
     });
 });
 
-// ⏸️ `shouldAutoRequestToken` hiện KHÔNG được gọi trong luồng khởi động — nghiệp
-// vụ chốt là không chặn. Vẫn giữ test để hàm không mục nát nếu sau này bật lại.
-describe('backoff chống ping-pong giữa hai app (hiện không dùng)', () => {
-    test('chưa từng thử -> cho phép tự động', async () => {
-        await expect(shouldAutoRequestToken()).resolves.toBe(true);
+describe('cờ một-lần: app chỉ TỰ ĐỘNG bay sang AMIS đúng một lần mỗi lần cài', () => {
+    test('máy mới cài -> chưa dùng lượt nào', async () => {
+        await expect(hasAutoLaunchedAmis()).resolves.toBe(false);
     });
 
-    test('vừa thử xong -> KHÔNG tự động gửi lại', async () => {
-        mockStore[AMIS_KEYS.attemptedAt] = String(Date.now());
-        await expect(shouldAutoRequestToken()).resolves.toBe(false);
+    test('đánh dấu xong -> đọc lại thấy đã dùng', async () => {
+        await markAmisAutoLaunched();
+        expect(mockStore[AMIS_KEYS.autoLaunched]).toBeTruthy();
+        await expect(hasAutoLaunchedAmis()).resolves.toBe(true);
     });
 
-    test('quá thời hạn backoff -> cho phép lại', async () => {
-        mockStore[AMIS_KEYS.attemptedAt] = String(Date.now());
-        const future = Date.now() + AMIS_TIMING.retryBackoffMs + 1000;
-        await expect(shouldAutoRequestToken(future)).resolves.toBe(true);
+    test('đăng xuất KHÔNG trả lại lượt tự mở', async () => {
+        // Nếu clearAmisSession xoá cờ này thì cứ đăng xuất là lại bị đá sang
+        // AMIS — đúng thứ nghiệp vụ muốn tránh.
+        await markAmisAutoLaunched();
+        mockStore[AMIS_KEYS.state] = 'ST';
+        mockStore[AMIS_KEYS.tenantId] = 'T001';
+        await clearAmisSession();
+        expect(mockStore[AMIS_KEYS.state]).toBeUndefined();
+        expect(mockStore[AMIS_KEYS.tenantId]).toBeUndefined();
+        await expect(hasAutoLaunchedAmis()).resolves.toBe(true);
     });
 });
 
@@ -554,7 +566,7 @@ describe('decideLaunchAction — cây quyết định lúc khởi động', () =
         storedUrl: '',
         storedSaas: '',
         amisDetection: AMIS_DETECT.YES,
-        canAutoRequest: true,
+        autoLaunchDone: false,
     };
 
     test('(1) có deep link -> đi luồng deep link, KHÔNG đụng AMIS', () => {
@@ -599,16 +611,24 @@ describe('decideLaunchAction — cây quyết định lúc khởi động', () =
         expect(r.reason).toBe('khong-do-duoc-amis');
     });
 
-    test('(4) ⏸️ backoff ĐÃ TẮT — vừa thất bại vẫn tự động thử lại ngay', () => {
-        // Nghiệp vụ chốt: máy trắng thông tin + có AMIS ⇒ mở app là sang AMIS,
-        // không chặn lại. Test khoá đúng điều đó — bật backoff lại thì test SẼ
-        // ĐỎ, đúng chủ đích, đổi kỳ vọng thành WELCOME là xong.
-        const r = decideLaunchAction({...base, canAutoRequest: false});
-        expect(r.action).toBe(LAUNCH_ACTION.REQUEST_TOKEN);
+    test('(4) đã tự mở một lần rồi -> Welcome, KHÔNG bao giờ tự mở lại', () => {
+        // Bất kể lần trước kết thúc thế nào (đồng ý / từ chối / bỏ ngang).
+        const r = decideLaunchAction({...base, autoLaunchDone: true});
+        expect(r.action).toBe(LAUNCH_ACTION.WELCOME);
+        expect(r.reason).toBe('da-tu-mo-mot-lan');
     });
 
-    test('(5) đủ điều kiện -> tự động xin token', () => {
+    test('(5) lần đầu, đủ điều kiện -> tự động xin token', () => {
         expect(decideLaunchAction(base).action).toBe(
+            LAUNCH_ACTION.REQUEST_TOKEN,
+        );
+    });
+
+    test('thiếu autoLaunchDone thì mặc định là CHƯA dùng lượt nào', () => {
+        // Mặc định phải nghiêng về "cho chạy": đọc storage hỏng mà mặc định
+        // thành `true` là tính năng chết âm thầm trên máy mới cài.
+        const {autoLaunchDone: _bo, ...khongTruyen} = base;
+        expect(decideLaunchAction(khongTruyen).action).toBe(
             LAUNCH_ACTION.REQUEST_TOKEN,
         );
     });
@@ -619,7 +639,7 @@ describe('decideLaunchAction — cây quyết định lúc khởi động', () =
             initialUrl: 'vnrlms://applms/home/x',
             storedUrl: 'https://x.vn',
             amisDetection: AMIS_DETECT.NO,
-            canAutoRequest: false,
+            autoLaunchDone: true,
         });
         expect(r.action).toBe(LAUNCH_ACTION.DEEP_LINK);
     });
@@ -1000,26 +1020,32 @@ describe('readAmisSid — nguồn giá trị cho cookie x-sessionid', () => {
     });
 });
 
-describe('nút "Đăng nhập bằng AMIS" — tạm ẩn cả hai nền tảng', () => {
-    test('ẩn trên cả iOS lẫn Android', () => {
+describe('nút "Đăng nhập bằng AMIS" — luôn hiện khi máy có AMIS', () => {
+    test('hiện trên cả iOS lẫn Android', () => {
+        // Lượt tự mở AMIS chỉ có MỘT lần mỗi lần cài app, nên nút này là đường
+        // vào duy nhất còn lại. Ẩn nó đi là ngõ cụt vĩnh viễn.
         const {Platform} = require('react-native');
         const realOS = Platform.OS;
         try {
             Platform.OS = 'ios';
-            expect(shouldShowAmisLoginButton()).toBe(false);
+            expect(shouldShowAmisLoginButton()).toBe(true);
             Platform.OS = 'android';
-            expect(shouldShowAmisLoginButton()).toBe(false);
+            expect(shouldShowAmisLoginButton()).toBe(true);
         } finally {
             Platform.OS = realOS;
         }
     });
+
+    test('KHÔNG phụ thuộc cờ một-lần đã dùng hay chưa', async () => {
+        await markAmisAutoLaunched();
+        expect(shouldShowAmisLoginButton()).toBe(true);
+    });
 });
 
 describe('clearAmisSession', () => {
-    test('xoá sạch dấu vết AMIS khi người dùng đăng xuất thủ công', async () => {
+    test('xoá sạch dấu vết của PHIÊN khi người dùng đăng xuất thủ công', async () => {
         mockStore[AMIS_KEYS.state] = 'ST';
         mockStore[AMIS_KEYS.stateAt] = '123';
-        mockStore[AMIS_KEYS.attemptedAt] = '123';
         mockStore[AMIS_KEYS.tenantId] = 'T001';
         await clearAmisSession();
         expect(Object.keys(mockStore)).toHaveLength(0);

@@ -220,18 +220,20 @@ export const AMIS_TIMING = {
     // callback và sự kiện "app active" về sát nhau, lệch thứ tự: cả hai nền tảng
     // đều bắn deep link TRƯỚC khi app active, nên không cần dài.
     returnGraceMs: 1200,
-
-    // ⏸️ HIỆN KHÔNG DÙNG — nghiệp vụ chốt là mỗi lần mở app đều sang AMIS.
-    // Giữ lại để bật lại được, xem amisLaunchFlow.js#decideLaunchAction (3).
-    retryBackoffMs: 24 * 60 * 60 * 1000,
 };
 
 // ⚠️ KHÔNG lưu `sid` — nó dùng một lần.
 export const AMIS_KEYS = {
     state: 'amis_auth_state',
     stateAt: 'amis_auth_ts',
-    attemptedAt: 'amis_gettoken_attempted_at',
     tenantId: 'amis_tenantid',
+
+    // Đã tự động bay sang AMIS lần nào chưa. MỘT LẦN cho mỗi lần cài app, không
+    // quan tâm kết quả — xem amisLaunchFlow.js#decideLaunchAction.
+    // ⚠️ Cố ý KHÔNG nằm trong danh sách xoá của `clearAmisSession`: cờ này thuộc
+    // về bản cài, không thuộc về phiên. Xoá theo lúc đăng xuất là mỗi lần đăng
+    // xuất lại bị đá sang AMIS một lần nữa.
+    autoLaunched: 'amis_auto_launched',
 };
 
 /* ── 7. MÃ LỖI — dùng làm hậu tố khoá i18n (`amis.errorTimeout`, …) ───────── */
@@ -325,18 +327,16 @@ export function isAmisConfigured() {
 }
 
 /**
- * ⏸️ Nút "Đăng nhập bằng AMIS" đang ẩn trên CẢ HAI nền tảng: app đã tự mở AMIS
- * khi máy trắng thông tin, mở không được thì im lặng, còn mở được mà người dùng
- * tắt AMIS thì đã có nút "Thử lại" dưới thông báo.
+ * Nút "Đăng nhập bằng AMIS" ở màn Welcome — hiện trên CẢ HAI nền tảng, miễn là
+ * máy có app AMIS (điều kiện đó do `showLoginButton` trong useAmisLogin ghép
+ * thêm). KHÔNG phụ thuộc việc app đã tự bay sang AMIS hay chưa.
  *
- * Chỉ ẩn nút, KHÔNG tắt tính năng (hai cờ riêng: `showLoginButton` và
- * `showRetry`). Đường vào bị mất: người dùng đang có site, bấm Home về Welcome
- * rồi muốn đăng nhập bằng AMIS — lúc đó phải nhập mã cấu hình tay.
- *
- * Bật lại: `return true`, hoặc `return Platform.OS !== 'android'` cho riêng iOS.
+ * Đây là lối vào duy nhất còn lại sau khi lượt tự động đã dùng hết, nên tắt nút
+ * là tạo ra ngõ cụt vĩnh viễn: mở AMIS hỏng ngay lần đầu ⇒ mất luôn đường đăng
+ * nhập bằng AMIS cho tới khi cài lại app.
  */
 export function shouldShowAmisLoginButton() {
-    return false;
+    return true;
 }
 
 /**

@@ -18,12 +18,13 @@ import {
 import {
     LINK_TYPE,
     classifyCallbackError,
+    hasAutoLaunchedAmis,
     isAmisInstalled,
     isCallbackRejected,
     lookupTenant,
+    markAmisAutoLaunched,
     parseAmisLink,
     requestTokenKey,
-    // shouldAutoRequestToken,   // ⏸️ backoff đã tắt, xem amisLaunchFlow.js
     verifyState,
 } from './amisAuth';
 import {
@@ -249,7 +250,8 @@ export default function useAmisLogin(options = {}) {
 
     /**
      * Bước (1): mở AMIS xin quyền. Dùng chung cho lần tự động lúc khởi động lẫn
-     * lần người dùng bấm nút — backoff (nếu bật) chỉ chặn ở cây quyết định.
+     * lần người dùng bấm nút; việc giới hạn "chỉ tự mở một lần" nằm ở cây quyết
+     * định (decideLaunchAction), không nằm trong đây.
      */
     const startAmisLogin = useCallback(async () => {
         if (!isAmisConfigured()) {
@@ -314,13 +316,13 @@ export default function useAmisLogin(options = {}) {
                 return;
             }
 
-            const [storedUrl, storedSaas, detection] = await Promise.all([
-                getData('url'),
-                getData('saas_userdata'),
-                isAmisInstalled(),
-                // ⏸️ backoff đã tắt, xem amisLaunchFlow.js
-                // shouldAutoRequestToken(),
-            ]);
+            const [storedUrl, storedSaas, detection, autoLaunchDone] =
+                await Promise.all([
+                    getData('url'),
+                    getData('saas_userdata'),
+                    isAmisInstalled(),
+                    hasAutoLaunchedAmis(),
+                ]);
             if (cancelled) {
                 return;
             }
@@ -333,12 +335,15 @@ export default function useAmisLogin(options = {}) {
                 storedUrl: storedUrl || '',
                 storedSaas: storedSaas || '',
                 amisDetection: detection,
-                // canAutoRequest,   // ⏸️ backoff đã tắt
+                autoLaunchDone,
             });
             if (action !== LAUNCH_ACTION.REQUEST_TOKEN) {
                 applyPhase(AMIS_PHASE.IDLE);
                 return;
             }
+            // Đánh dấu TRƯỚC khi mở AMIS, và chỉ ở nhánh tự động này — bấm nút
+            // tay không đốt lượt. Lý do phải ghi trước: xem markAmisAutoLaunched.
+            await markAmisAutoLaunched();
             await startAmisLogin();
         })();
         return () => {

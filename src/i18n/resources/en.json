@@ -44,7 +44,7 @@
     "guideNote": "The configuration code and QR code are provided by your organization or school."
   },
   "amis": {
-    "loginButton": "Sign in with AMIS",
+    "loginButton": "Sign in with MISA AMIS",
     "noticeTitle": "Notice",
     "waiting": "Waiting for confirmation from AMIS…",
     "exchanging": "Verifying with the system…",

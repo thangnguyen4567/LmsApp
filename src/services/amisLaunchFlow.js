@@ -22,6 +22,7 @@ export const LAUNCH_ACTION = {
  * @param {string} input.storedUrl      khoá `url` trong MMKV
  * @param {string} input.storedSaas     khoá `saas_userdata` trong MMKV
  * @param {string} input.amisDetection  một giá trị của AMIS_DETECT
+ * @param {boolean} input.autoLaunchDone đã dùng hết lượt tự mở AMIS chưa
  * @returns {{action: string, reason: string}}
  */
 export function decideLaunchAction(input = {}) {
@@ -30,7 +31,7 @@ export function decideLaunchAction(input = {}) {
         storedUrl = '',
         storedSaas = '',
         amisDetection = AMIS_DETECT.NO,
-        // canAutoRequest = true,   // ⏸️ xem khối backoff đang tắt ở dưới
+        autoLaunchDone = false,
     } = input;
 
     // (1) `getInitialURL()` là bất đồng bộ. Quyết định trước khi nó trả về sẽ
@@ -57,19 +58,17 @@ export function decideLaunchAction(input = {}) {
         return {action: LAUNCH_ACTION.WELCOME, reason: 'khong-do-duoc-amis'};
     }
 
-    // ⏸️ (3) BACKOFF ĐANG TẮT — quyết định nghiệp vụ đã chốt, không phải nợ:
-    // máy trắng thông tin mà có AMIS thì mỗi lần mở app đều sang AMIS.
+    // (3) Tự mở AMIS đúng MỘT LẦN cho mỗi lần cài app, bất kể kết quả (đồng ý,
+    // từ chối, hay bỏ ngang quay về đều tính là đã dùng). Không hỏi lại nữa vì
+    // người đã từ chối một lần mà mở app lần nào cũng bị đá sang AMIS thì rất
+    // khó chịu.
     //
-    // Đánh đổi đã được chấp nhận: xin quyền thất bại → mở lại app → gửi tiếp.
-    // Không thành bẫy chết vì rời AMIS là app thôi chờ ngay (useAmisLogin,
-    // effect AppState) và rơi về Welcome, nhập mã cấu hình tay được.
-    //
-    // Bật lại: bỏ comment 3 chỗ — khối dưới đây, `canAutoRequest` ở phần
-    // destructure, và lời gọi `shouldAutoRequestToken()` trong useAmisLogin.js.
-    //
-    // if (!canAutoRequest) {
-    //     return {action: LAUNCH_ACTION.WELCOME, reason: 'vua-thu-that-bai'};
-    // }
+    // Không thành ngõ cụt: nút "Đăng nhập bằng AMIS" ở màn Welcome luôn hiện khi
+    // máy có app AMIS (shouldShowAmisLoginButton) — đó là đường vào sau lượt này.
+    // Reset chỉ bằng cách xoá dữ liệu app / cài lại.
+    if (autoLaunchDone) {
+        return {action: LAUNCH_ACTION.WELCOME, reason: 'da-tu-mo-mot-lan'};
+    }
 
     return {action: LAUNCH_ACTION.REQUEST_TOKEN, reason: 'du-dieu-kien'};
 }

@@ -166,6 +166,12 @@ export default function WelcomePlaceholder(props) {
                         accessibilityState={{disabled: amisBusy}}
                         accessibilityLabel={t('amis.loginButton')}
                     >
+                        <Image
+                            source={require('../assets/amislogo.png')}
+                            style={styles.amisButtonLogo}
+                            resizeMode="contain"
+                            accessibilityIgnoresInvertColors
+                        />
                         <Text style={styles.amisButtonText}>{t('amis.loginButton')}</Text>
                     </TouchableOpacity>
                 )}
@@ -333,9 +339,15 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.systemcolor,
         backgroundColor: colors.surface,
+        flexDirection: 'row', // logo AMIS đứng trước chữ
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: spacing.md, // 12
+    },
+    amisButtonLogo: {
+        width: 30,
+        height: 30,
+        marginRight: spacing.sm, // 8
     },
     amisButtonText: {
         fontSize: fontSizes.text, // 16
