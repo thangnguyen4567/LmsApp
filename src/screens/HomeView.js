@@ -500,8 +500,6 @@ class HomeView extends Component {
         deleteData('password');
         deleteData('saas_userdata');
         deleteData('navConfig');
-        // Quên luôn tenant đang gắn + cờ chống lặp của kịch bản A, để deep link
-        // AMIS lần sau (kể cả cùng tenant) được coi là phiên mới.
         clearAmisSession();
         this._tenantId = '';
     };
@@ -544,24 +542,25 @@ class HomeView extends Component {
         });
     };
 
-    // Quay lại màn Welcome khi đã mở URL nhưng CHƯA đăng nhập
+    /**
+     * Nút quay về màn Welcome ở header — hiện khi đã mở site nhưng CHƯA đăng nhập (thường là ngay sau khi đăng xuất, đang đứng ở trang login).
+     */
     backToWelcome = () => {
-        const current = this.props.redirectUrl || this.state.url || '';
-        let prefill = this.state.welcomeInitialUrl;
-        if (!prefill) {
-            try {
-                prefill = new URL(current).origin;
-            } catch (e) {
-                prefill = current;
-            }
-        }
         this.props.onClearRedirectUrl?.();
+        this.clearLocalSession();
+        deleteData('url');
         this.setState({
             url: '',
-            welcomeInitialUrl: prefill,
+            welcomeInitialUrl: '',
             webTitle: '',
             currentUrl: '',
             canGoBack: false,
+            session: '',
+            isMenuOpen: false,
+            username: '',
+            password: '',
+            saas_userdata: '',
+            navConfig: null,
             authMethod: '',
         });
     }
