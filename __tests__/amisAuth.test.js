@@ -26,6 +26,15 @@ jest.mock('../src/components/AsyncStorage', () => ({
     }),
 }));
 
+// URL tra tenant lấy từ Firebase Remote Config. Mặc định '' ⇒ mọi test cũ chạy
+// như trước: chỉ có URL cố định trong amisConfig.js.
+const mockRemote = {url: ''};
+
+jest.mock('../src/services/remoteConfig', () => ({
+    getRemoteTenantLookupUrl: jest.fn(() => mockRemote.url),
+    waitForRemoteConfig: jest.fn(() => Promise.resolve(true)),
+}));
+
 const {
     AMIS_APP,
     AMIS_DEBUG,
@@ -833,6 +842,141 @@ describe('API QL Tenant — hợp đồng thật', () => {
         }
     });
 
+});
+
+/**
+ * Endpoint đổi từ xa (Firebase Remote Config) — đổi domain/đường dẫn API mà
+ * không phải submit app. URL từ xa đi trước, URL cố định là đường lùi.
+ */
+describe('API QL Tenant — URL từ Remote Config', () => {
+    const realFetch = global.fetch;
+    const REMOTE = 'https://new-api.example.com/v2/tenant/{tenantid}';
+    const FIXED = 'https://lmsadminapi.vnresource.vn/api/Tenant/GetByTenantId/';
+    const okBody = {
+        IsSuccess: true,
+        Message: 'Success',
+        Data: {Code: 'T-CODE', Link: 'https://elearning.vnresource.net'},
+    };
+    let calls = [];
+
+    // `byHost`: host -> {status, body} hoặc 'throw' (mất mạng/timeout).
+    const route = byHost => {
+        global.fetch = jest.fn(url => {
+            calls.push(url);
+            const answer = byHost[new URL(url).hostname];
+            if (answer === 'throw') {
+                return Promise.reject(new Error('network'));
+            }
+            const {status = 200, body = okBody} = answer || {};
+            return Promise.resolve({
+                ok: status >= 200 && status < 300,
+                status,
+                json: () => Promise.resolve(body),
+            });
+        });
+    };
+
+    beforeEach(() => {
+        mockRemote.url = REMOTE;
+        calls = [];
+    });
+
+    afterEach(() => {
+        mockRemote.url = '';
+        global.fetch = realFetch;
+    });
+
+    test('có URL từ xa ⇒ gọi nó, KHÔNG gọi URL cố định', async () => {
+        route({});
+        const res = await lookupTenant({tenantid: 'abc-123'});
+        expect(res.ok).toBe(true);
+        expect(calls).toEqual(['https://new-api.example.com/v2/tenant/abc-123']);
+        // Cờ nội bộ không được lọt ra kết quả.
+        expect(res).not.toHaveProperty('unreachable');
+    });
+
+    test('URL từ xa chết (mất mạng) ⇒ lùi về URL cố định', async () => {
+        route({'new-api.example.com': 'throw'});
+        const res = await lookupTenant({tenantid: 'T1'});
+        expect(res.ok).toBe(true);
+        expect(calls[1]).toBe(FIXED + 'T1');
+    });
+
+    test('URL từ xa sai đường dẫn (404) ⇒ lùi về URL cố định', async () => {
+        route({'new-api.example.com': {status: 404, body: {}}});
+        const res = await lookupTenant({tenantid: 'T1'});
+        expect(res.ok).toBe(true);
+        expect(calls).toHaveLength(2);
+    });
+
+    test('URL từ xa trả body sai cấu trúc ⇒ lùi về URL cố định', async () => {
+        route({'new-api.example.com': {body: null}});
+        const res = await lookupTenant({tenantid: 'T1'});
+        expect(res.ok).toBe(true);
+        expect(calls).toHaveLength(2);
+    });
+
+    test('API từ xa trả lời rõ "không có tenant" ⇒ KHÔNG gọi lại URL cũ', async () => {
+        // Câu trả lời nghiệp vụ hợp lệ, hỏi lại chỗ khác chỉ ra kết quả cũ hơn.
+        route({
+            'new-api.example.com': {
+                body: {IsSuccess: false, Message: 'TenantNotFound', Data: null},
+            },
+        });
+        const res = await lookupTenant({tenantid: 'T404'});
+        expect(res.error).toBe(LOOKUP_ERROR.NOTFOUND);
+        expect(calls).toHaveLength(1);
+    });
+
+    test('hết hạn (401) ⇒ KHÔNG lùi', async () => {
+        route({'new-api.example.com': {status: 401, body: {}}});
+        const res = await lookupTenant({tenantid: 'T1'});
+        expect(res.error).toBe(LOOKUP_ERROR.EXPIRED);
+        expect(calls).toHaveLength(1);
+    });
+
+    test('cả hai URL đều chết ⇒ NETWORK', async () => {
+        route({
+            'new-api.example.com': 'throw',
+            'lmsadminapi.vnresource.vn': 'throw',
+        });
+        const res = await lookupTenant({tenantid: 'T1'});
+        expect(res).toEqual({ok: false, error: LOOKUP_ERROR.NETWORK});
+    });
+
+    test('URL từ xa trùng URL cố định ⇒ chỉ gọi một lần', async () => {
+        mockRemote.url = FIXED + '{tenantid}';
+        route({'lmsadminapi.vnresource.vn': 'throw'});
+        await lookupTenant({tenantid: 'T1'});
+        expect(calls).toHaveLength(1);
+    });
+});
+
+describe('isValidLookupTemplate — chặn URL từ xa không an toàn', () => {
+    const {isValidLookupTemplate} = jest.requireActual(
+        '../src/services/remoteConfig',
+    );
+
+    test('https + có {tenantid} ⇒ nhận', () => {
+        expect(
+            isValidLookupTemplate('https://api.example.com/t/{tenantid}'),
+        ).toBe(true);
+        expect(
+            isValidLookupTemplate('https://api.example.com/t?id={tenantid}'),
+        ).toBe(true);
+    });
+
+    test('http, thiếu {tenantid}, rỗng, rác ⇒ bỏ', () => {
+        [
+            'http://api.example.com/t/{tenantid}',
+            'https://api.example.com/t/',
+            '',
+            'not a url {tenantid}',
+            ['javascript', 'alert(1)//{tenantid}'].join(':'),
+        ].forEach(value => {
+            expect(isValidLookupTemplate(value)).toBe(false);
+        });
+    });
 });
 
 /**

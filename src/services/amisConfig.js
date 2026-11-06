@@ -130,6 +130,11 @@ export const AMIS_CALLBACK = {
  * ⚠️ Không tìm thấy tenant thì API vẫn trả **HTTP 200**, chỉ đổi
  * `IsSuccess:false` + `Message:"TenantNotFound"` + `Data:null`. Đừng trông vào
  * mã HTTP — 404 chỉ xảy ra khi URL thiếu hẳn tenantid.
+ *
+ * 🔁 `url` ĐỔI ĐƯỢC TỪ XA, không cần submit app: Firebase Remote Config, key
+ * `tenant_lookup_url` (xem ./remoteConfig.js). Có giá trị hợp lệ (https + chứa
+ * `{tenantid}`) thì app dùng nó trước; không tới được API thì lùi về `url` dưới
+ * đây. Giá trị ở đây vì thế PHẢI giữ là một endpoint còn sống.
  * ─────────────────────────────────────────────────────────────────────────── */
 
 export const VNR_TENANT_LOOKUP = {

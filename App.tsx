@@ -15,6 +15,7 @@ import {
   normalizeLegacyMisaUrl,
 } from './src/components/amisDeepLink';
 import useAmisLogin from './src/services/useAmisLogin';
+import {initRemoteConfig} from './src/services/remoteConfig';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
@@ -241,6 +242,8 @@ function App() {
   const [i18nReady, setI18nReady] = useState(false);
 
   useEffect(() => {
+    // Tải cấu hình từ xa (endpoint tra tenant AMIS) chạy nền, không chặn render.
+    initRemoteConfig();
     let cancelled = false;
     bootstrapI18n().finally(() => {
       if (!cancelled) {

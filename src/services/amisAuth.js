@@ -17,6 +17,7 @@ import {
     isTenantLookupConfigured,
     joinAmisUrl,
 } from './amisConfig';
+import {getRemoteTenantLookupUrl, waitForRemoteConfig} from './remoteConfig';
 
 /**
  * Kịch bản A — máy chưa từng có phiên LMS nào.
@@ -460,6 +461,32 @@ export async function lookupTenant(payload = {}) {
         return {ok: false, error: LOOKUP_ERROR.CONFIG};
     }
 
+    // URL lấy từ Firebase Remote Config đi TRƯỚC, URL cố định trong code làm
+    // đường lùi — Console cấu hình sai cũng không được làm chết đăng nhập AMIS.
+    await waitForRemoteConfig();
+    const urls = [getRemoteTenantLookupUrl(), VNR_TENANT_LOOKUP.url].filter(
+        (url, index, all) => url && all.indexOf(url) === index,
+    );
+    // Không URL nào (chỉ khi cờ AMIS_DEBUG bật mà chưa điền endpoint): như cũ.
+    let result = {ok: false, error: LOOKUP_ERROR.NETWORK};
+    for (let i = 0; i < urls.length; i++) {
+        result = await requestLookup(urls[i], data);
+        // Chỉ thử URL kế khi URL này không tới được API. API đã trả lời rõ
+        // (thành công, không có tenant, hết hạn) thì đó là kết quả.
+        if (!result.unreachable) {
+            break;
+        }
+    }
+    const {unreachable: _unreachable, ...answer} = result;
+    return answer;
+}
+
+/**
+ * Gọi MỘT URL tra tenant. `unreachable: true` khi lỗi nằm ở đường đi chứ không
+ * phải câu trả lời của API: 404, mã HTTP lỗi, timeout, body không phải JSON
+ * hoặc sai cấu trúc — dấu hiệu URL sai/chết, nên bên gọi thử URL khác.
+ */
+async function requestLookup(template, data) {
     const method = (VNR_TENANT_LOOKUP.method || 'POST').toUpperCase();
     const sendsBody = method !== 'GET' && method !== 'HEAD';
 
@@ -496,18 +523,15 @@ export async function lookupTenant(payload = {}) {
             options.headers['Content-Type'] = 'application/json';
             options.body = JSON.stringify(body);
         }
-        const res = await fetch(
-            buildLookupUrl(VNR_TENANT_LOOKUP.url, data),
-            options,
-        );
+        const res = await fetch(buildLookupUrl(template, data), options);
         if (res.status === 404) {
-            return {ok: false, error: LOOKUP_ERROR.NOTFOUND};
+            return {ok: false, error: LOOKUP_ERROR.NOTFOUND, unreachable: true};
         }
         if (res.status === 401 || res.status === 403 || res.status === 410) {
             return {ok: false, error: LOOKUP_ERROR.EXPIRED};
         }
         if (!res.ok) {
-            return {ok: false, error: LOOKUP_ERROR.NETWORK};
+            return {ok: false, error: LOOKUP_ERROR.NETWORK, unreachable: true};
         }
         const json = await res.json();
         const map = VNR_TENANT_LOOKUP.response || {};
@@ -519,9 +543,12 @@ export async function lookupTenant(payload = {}) {
         // "Success", đọc thẳng nó như lỗi là chuyến nào cũng hỏng.
         if (map.success) {
             if (!readField(map.success)) {
+                const error = normalizeLookupError(readField(map.error));
+                // `unknown` = body không mang câu trả lời nào đọc được.
                 return {
                     ok: false,
-                    error: normalizeLookupError(readField(map.error)),
+                    error,
+                    unreachable: error === LOOKUP_ERROR.UNKNOWN,
                 };
             }
         } else {
@@ -552,7 +579,7 @@ export async function lookupTenant(payload = {}) {
         };
     } catch (_e) {
         // Gồm cả abort do quá `timeoutMs` và JSON hỏng.
-        return {ok: false, error: LOOKUP_ERROR.NETWORK};
+        return {ok: false, error: LOOKUP_ERROR.NETWORK, unreachable: true};
     } finally {
         clearTimeout(timer);
     }

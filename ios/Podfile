@@ -18,11 +18,12 @@ setup_permissions([
   'Camera',
 ])
 
-linkage = ENV['USE_FRAMEWORKS']
-if linkage != nil
-  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
-  use_frameworks! :linkage => linkage.to_sym
-end
+# Firebase iOS SDK (@react-native-firebase) bắt buộc static frameworks. Vẫn đè
+# được bằng biến môi trường USE_FRAMEWORKS nếu cần.
+$RNFirebaseAsStaticFramework = true
+linkage = ENV['USE_FRAMEWORKS'] || 'static'
+Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+use_frameworks! :linkage => linkage.to_sym
 
 target 'LMS' do
   config = use_native_modules!
