@@ -13,7 +13,6 @@ import {
   View,
   BackHandler,
   ActivityIndicator,
-  Linking,
   Platform,
   Text,
   TouchableOpacity,
@@ -494,38 +493,13 @@ class ContentView extends Component {
                     injectedJavaScriptBeforeContentLoaded={INJECTED_BEFORE_CONTENT}
                     onLoadStart={() => this.setState({visible:true})}
                     setSupportMultipleWindows={false}
-                    onShouldStartLoadWithRequest={request => {
-                        if(Platform.OS === 'android') {
-                            let rooturl;
-                            try {
-                                rooturl = new URL(this.props.url);
-                            } catch (e) {
-                                Linking.openURL(request.url);
-                                return false;
-                            }
-                            // Normalize: so sánh không phân biệt http/https
-                            const normalizeUrl = (url) => url.replace(/^https?:\/\//, '');
-                            const reqNorm = normalizeUrl(request.url);
-                            const isWhitelisted = (
-                                reqNorm.startsWith(normalizeUrl(rooturl.origin)) ||
-                                reqNorm.startsWith('amisapp.misa.vn/') ||
-                                reqNorm.startsWith('misajsc.amis.vn/') ||
-                                reqNorm.startsWith('testmisajsc.amis.vn/') ||
-                                reqNorm.startsWith('testamisapp.misa.vn/') ||
-                                reqNorm.startsWith('lmsadmin.vnresource.vn/')
-                            );
-                            if (isWhitelisted) {
-                                return true; // Cho phép tải trang mới
-                            }
-                            if (!request.url.includes('google.com') && !request.url.includes('notify.misa')) {
-                                Linking.openURL(request.url);
-                                return false; // Chặn yêu cầu tải trang mới
-                            }
-                            return true;
-                        } else {
-                            return true;
-                        }
-                    }}
+                    // KHÔNG đặt onShouldStartLoadWithRequest / whitelist domain: mọi URL
+                    // http(s) đều mở ngay trong WebView (cả Android lẫn iOS). Whitelist cũ
+                    // đẩy trang identity của OIDC (Keycloak, Azure AD...) sang trình duyệt
+                    // ngoài -> callback không quay về app, không đăng nhập được, và mỗi khách
+                    // lại phải add thêm domain. Scheme không phải http(s) (tel:, mailto:,
+                    // intent:...) vẫn được react-native-webview tự mở ra ngoài qua
+                    // originWhitelist mặc định.
                     onLoadEnd={() => {
                         this.setState({visible:false})
                     }}
